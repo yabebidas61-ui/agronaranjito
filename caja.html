@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Caja — NEXUS</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f5f6fa; display: flex; }
+
+    /* ── SIDEBAR ── */
+    .sidebar { width: 220px; background: #1e272e; color: white; height: 100vh; padding: 20px; flex-shrink: 0; }
+    .sidebar h2 { margin-bottom: 16px; color: white; }
+    .sidebar a { display: block; color: white; padding: 10px; text-decoration: none; margin-top: 6px; border-radius: 8px; }
+    .sidebar a:hover, .sidebar a.active { background: #485460; }
+
+    /* ── MAIN ── */
+    .main { flex: 1; display: flex; flex-direction: column; min-height: 100vh; overflow-y: auto; }
+    .header { background: #ff3f34; color: white; padding: 15px 20px; font-size: 20px; font-weight: bold; }
+
+    /* ── GRID / CARDS ── */
+    .contenido { padding: 20px; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+    .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.08); }
+    .card h3 { margin-bottom: 12px; font-size: 16px; }
+
+    /* ── INPUTS ── */
+    input[type="text"],
+    input[type="number"],
+    input[type="password"] {
+      padding: 10px; margin-top: 8px; width: 100%;
+      border-radius: 6px; border: 1px solid #ccc;
+      font-family: inherit; font-size: 14px;
+    }
+    input:focus { outline: none; border-color: #ff3f34; }
+
+    /* ── BUTTONS ── */
+    button {
+      margin-top: 10px; width: 100%; padding: 10px;
+      border: none; background: #ff3f34; color: white;
+      border-radius: 6px; cursor: pointer; font-weight: bold;
+      font-family: inherit; font-size: 14px;
+    }
+    button:hover { background: #e84118; }
+    button.btn-gray { background: #636e72; }
+    button.btn-gray:hover { background: #2d3436; }
+    button.btn-danger { background: #d63031; }
+    button.btn-danger:hover { background: #b71c1c; }
+    button.btn-sm { width: auto; padding: 5px 12px; font-size: 12px; margin-top: 0; display: inline-block; }
+
+    /* ── ESTADO CAJA ── */
+    .saldo { font-size: 22px; color: green; font-weight: bold; }
+    .estado-row { display: flex; justify-content: space-between; align-items: center; padding: 7px 0; border-bottom: 1px solid #f0f0f0; font-size: 14px; }
+    .estado-row:last-child { border-bottom: none; }
+
+    .aviso { background: #fff8e1; border: 1px solid #ffc107; border-radius: 6px; padding: 10px; margin-bottom: 10px; font-size: 12px; color: #795548; }
+
+    .badge { background: #fff3f3; color: #ff3f34; font-size: 11px; padding: 2px 7px; border-radius: 4px; cursor: pointer; margin-left: 6px; border: 1px solid #ffcdd2; font-weight: bold; }
+    .badge:hover { background: #ffcdd2; }
+
+    /* ── DETALLE TRANSFERENCIAS ── */
+    .trans-detalle { background: #f9f9f9; border-radius: 8px; padding: 10px; margin-top: 10px; font-size: 13px; display: none; }
+    .trans-item { padding: 6px 0; border-bottom: 1px dashed #ddd; display: flex; flex-wrap: wrap; gap: 4px 10px; }
+    .trans-item:last-child { border-bottom: none; }
+
+    /* ── HISTORIAL ── */
+    .historial-section { padding: 0 20px 30px 20px; }
+    .historial-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; flex-wrap: wrap; gap: 10px; }
+    .historial-header h3 { font-size: 18px; color: #1e272e; }
+    .btn-borrar-todo { background: #d63031; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; }
+    .btn-borrar-todo:hover { background: #b71c1c; }
+
+    .historial-vacio { color: #999; font-size: 14px; text-align: center; padding: 30px 0; }
+
+    .hist-item { background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.07); margin-bottom: 12px; overflow: hidden; }
+    .hist-item-header { display: flex; align-items: center; justify-content: space-between; padding: 13px 18px; background: #fafafa; border-bottom: 1px solid #f0f0f0; flex-wrap: wrap; gap: 8px; }
+    .hist-fecha { font-weight: bold; font-size: 14px; color: #1e272e; }
+    .hist-hora  { font-size: 12px; color: #636e72; margin-top: 2px; }
+    .hist-saldo-badge { background: #e8f5e9; color: #2e7d32; font-weight: bold; padding: 5px 14px; border-radius: 20px; font-size: 14px; }
+    .hist-item-body { padding: 12px 18px; display: none; font-size: 13px; }
+    .hist-item-body.abierto { display: block; }
+    .hist-row { display: flex; justify-content: space-between; padding: 5px 0; border-bottom: 1px dashed #f0f0f0; }
+    .hist-row:last-child { border-bottom: none; }
+    .hist-row span:first-child { color: #636e72; }
+    .hist-row span:last-child  { font-weight: 600; color: #2d3436; }
+    .hist-actions { display: flex; align-items: center; gap: 8px; }
+
+    .btn-toggle-hist { background: #dfe6e9; color: #2d3436; border: none; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold; }
+    .btn-toggle-hist:hover { background: #b2bec3; }
+    .btn-del-dia { background: #fff0f0; color: #d63031; border: 1px solid #ffcdd2; padding: 5px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: bold; }
+    .btn-del-dia:hover { background: #ffcdd2; }
+
+    /* ── MODALES ── */
+    .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 1000; align-items: center; justify-content: center; }
+    .modal-overlay.activo { display: flex; }
+    .modal-box { background: white; border-radius: 14px; padding: 28px 32px; width: 340px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); }
+    .modal-box h3 { margin-bottom: 10px; font-size: 17px; }
+    .modal-box p  { font-size: 13px; color: #636e72; margin-top: 8px; }
+    .modal-btns   { display: flex; gap: 10px; margin-top: 14px; }
+    .modal-btns button { margin-top: 0; flex: 1; }
+
+    /* ── PRINT ── */
+    @page { size: 80mm auto; margin: 0; }
+    @media print {
+      body { width: 80mm; font-family: monospace; font-size: 12px; }
+      .sidebar, button, .historial-section { display: none !important; }
+      .card { box-shadow: none; border: none; padding: 5px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="sidebar">
+  <h2>NEXUS</h2>
+  <a href="index.html">💰 Venta</a>
+  <a href="bodega.html">📦 Bodega</a>
+  <a href="deuda.html">💸 Deudas</a>
+  <a href="analisis.html">🔍 Historial</a>
+  <a href="caja.html" class="active">💵 Caja</a>
+  <a href="cliente.html">👤 Clientes</a>
+</div>
+
+<div class="main">
+  <div class="header">🏦 Control de Caja</div>
+
+  <div class="contenido">
+
+    <!-- ABRIR -->
+    <div class="card">
+      <h3>🟢 Abrir Caja</h3>
+      <input id="montoApertura" type="number" placeholder="Monto inicial en efectivo">
+      <button onclick="abrir()">Abrir Caja</button>
+    </div>
+
+    <!-- ESTADO -->
+    <div class="card">
+      <h3>📊 Estado de Caja</h3>
+      <div class="aviso">⚠️ Transferencias contadas <b>solo en caja</b>, no en ventas, para evitar duplicados.</div>
+      <div class="estado-row"><span>Apertura</span><span>$<span id="apertura">0</span></span></div>
+      <div class="estado-row"><span>Ventas (efectivo)</span><span>$<span id="ingresos">0</span></span></div>
+      <div class="estado-row">
+        <span>Transferencias <span class="badge" onclick="toggleDetalle()">ver detalle</span></span>
+        <span>$<span id="transferencias">0</span></span>
+      </div>
+      <div class="trans-detalle" id="detalleTransferencias">
+        <i style="color:#999">Cargando...</i>
+      </div>
+      <div class="estado-row"><span>Gastos</span><span>− $<span id="gastos">0</span></span></div>
+      <div class="estado-row">
+        <span class="saldo">Saldo Total</span>
+        <span class="saldo">$<span id="saldo">0</span></span>
+      </div>
+      <button onclick="cargar()" class="btn-gray">🔄 Actualizar</button>
+    </div>
+
+    <!-- GASTO -->
+    <div class="card">
+      <h3>💸 Registrar Gasto</h3>
+      <input id="gastoMonto"  type="number" placeholder="Monto del gasto">
+      <input id="gastoMotivo" type="text"   placeholder="Motivo del gasto">
+      <button onclick="registrarGasto()">Registrar Gasto</button>
+    </div>
+
+    <!-- CERRAR -->
+    <div class="card">
+      <h3>🔴 Cerrar Caja</h3>
+      <p style="font-size:13px;color:#666;margin-top:6px;">
+        El cierre guardará el detalle completo en el historial e imprimirá el ticket.
+      </p>
+      <button onclick="abrirModalCierre()" class="btn-danger" style="margin-top:14px;">Cerrar Caja</button>
+      <button onclick="diagnosticar()" class="btn-gray" style="margin-top:8px;font-size:12px;">🔍 Ver datos del servidor</button>
+    </div>
+
+  </div>
+
+  <!-- HISTORIAL -->
+  <div class="historial-section">
+    <div class="historial-header">
+      <h3>📋 Historial de Cierres</h3>
+      <button class="btn-borrar-todo" onclick="pedirBorrarTodo()">🗑️ Borrar Todo el Historial</button>
+    </div>
+    <div id="historialContainer">
+      <div class="historial-vacio">Cargando historial...</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL: CIERRE ── -->
+<div class="modal-overlay" id="modalCierre">
+  <div class="modal-box">
+    <h3>🔴 Cerrar Caja</h3>
+    <p>¿Cuánto efectivo hay físicamente en caja?</p>
+    <input type="number" id="cierreReal"  placeholder="Monto real contado">
+    <p>¿Cuánto quieres dejar en caja para mañana?</p>
+    <input type="number" id="cierreDejar" placeholder="Monto a dejar (0 si nada)">
+    <div class="modal-btns">
+      <button class="btn-gray"   onclick="cerrarModalCierre()">Cancelar</button>
+      <button class="btn-danger" onclick="ejecutarCierre()">Confirmar Cierre</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MODAL: CONTRASEÑA ── -->
+<div class="modal-overlay" id="modalPass">
+  <div class="modal-box">
+    <h3 id="passModalTitulo">🔒 Confirmar Acción</h3>
+    <p id="passModalDesc">Ingresa la contraseña para continuar.</p>
+    <input type="password" id="passInput" placeholder="Contraseña" autocomplete="off">
+    <div class="modal-btns">
+      <button class="btn-gray"   onclick="cancelarModalPass()">Cancelar</button>
+      <button class="btn-danger" onclick="confirmarModalPass()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API           = "https://agronaranjito-1.onrender.com";
+const HISTORIAL_KEY = "caja_historial_agronaranjito";
+const PASSWORD      = "agro123";
+
+let _transferenciasList = [];
+let _passAccion = null;
+
+/* ═══ LOCALSTORAGE ═══ */
+function getHistorial() {
+  try { return JSON.parse(localStorage.getItem(HISTORIAL_KEY) || "[]"); }
+  catch { return []; }
+}
+function setHistorial(arr) {
+  localStorage.setItem(HISTORIAL_KEY, JSON.stringify(arr));
+}
+
+/* ═══ DEDUPLICAR TRANSFERENCIAS ═══ */
+function extraerTransferencias(data) {
+  const candidatos = [
+    data?.transferenciasList,
+    data?.transferenciasLista,
+    (data?.movimientos || []).filter(m => m.banco)
+  ];
+  for (const lista of candidatos) {
+    if (Array.isArray(lista) && lista.length > 0) {
+      const vistos = new Set();
+      return lista.filter(t => {
+        const clave = t._id || `${t.banco}|${t.comprobante}|${t.monto}`;
+        if (vistos.has(clave)) return false;
+        vistos.add(clave);
+        return true;
+      });
+    }
+  }
+  return [];
+}
+
+/* ═══ CARGAR ESTADO ═══ */
+async function cargar() {
+  try {
+    const res  = await fetch(API + '/caja');
+    const data = await res.json();
+    document.getElementById('apertura').textContent       = data?.apertura       ?? 0;
+    document.getElementById('ingresos').textContent       = data?.ingresos       ?? 0;
+    document.getElementById('gastos').textContent         = data?.gastos         ?? 0;
+    document.getElementById('saldo').textContent          = data?.saldo          ?? 0;
+    document.getElementById('transferencias').textContent = data?.transferencias  ?? 0;
+    _transferenciasList = extraerTransferencias(data);
+    renderDetalleTransferencias(_transferenciasList);
+  } catch {
+    ['apertura','ingresos','gastos','saldo','transferencias']
+      .forEach(id => document.getElementById(id).textContent = '0');
+    document.getElementById('detalleTransferencias').innerHTML =
+      '<i style="color:red">❌ Error de conexión</i>';
+  }
+}
+
+/* ═══ DETALLE TRANSFERENCIAS ═══ */
+function toggleDetalle() {
+  const d = document.getElementById('detalleTransferencias');
+  d.style.display = d.style.display === 'block' ? 'none' : 'block';
+}
+function renderDetalleTransferencias(lista) {
+  const d = document.getElementById('detalleTransferencias');
+  if (!lista.length) {
+    d.innerHTML = '<i style="color:#999">Sin transferencias registradas</i>';
+    return;
+  }
+  d.innerHTML = lista.map(t => `
+    <div class="trans-item">
+      🏦 <b>${t.banco || 'Sin banco'}</b>
+      · 🔢 <b>${t.comprobante || 'S/N'}</b>
+      · 💵 <b>$${t.monto || 0}</b>
+      ${t.motivo ? `<span style="color:#888;font-size:11px;width:100%">📝 ${t.motivo}</span>` : ''}
+    </div>`).join('');
+}
+
+/* ═══ ABRIR CAJA ═══ */
+async function abrir() {
+  const monto = Number(document.getElementById('montoApertura').value);
+  if (!monto || monto <= 0) return alertUI("Ingresa un monto válido.");
+  try {
+    const res  = await fetch(API + '/caja/abrir', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ monto })
+    });
+    const data = await res.json();
+    alertUI(data.error || "✅ Caja abierta correctamente.");
+  } catch { alertUI("❌ Error de conexión."); }
+  document.getElementById('montoApertura').value = '';
+  cargar();
+}
+
+/* ═══ REGISTRAR GASTO ═══ */
+async function registrarGasto() {
+  const monto  = Number(document.getElementById('gastoMonto').value);
+  const motivo = document.getElementById('gastoMotivo').value.trim() || 'Sin motivo';
+  if (!monto || monto <= 0) return alertUI("Ingresa un monto válido.");
+  try {
+    const res  = await fetch(API + '/caja/gasto', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ monto, motivo })
+    });
+    const data = await res.json();
+    alertUI(data.error || "✅ Gasto registrado.");
+  } catch { alertUI("❌ Error de conexión."); }
+  document.getElementById('gastoMonto').value  = '';
+  document.getElementById('gastoMotivo').value = '';
+  cargar();
+}
+
+/* ═══ MODAL CIERRE ═══ */
+function abrirModalCierre() {
+  document.getElementById('cierreReal').value  = '';
+  document.getElementById('cierreDejar').value = '';
+  document.getElementById('modalCierre').classList.add('activo');
+  setTimeout(() => document.getElementById('cierreReal').focus(), 100);
+}
+function cerrarModalCierre() {
+  document.getElementById('modalCierre').classList.remove('activo');
+}
+async function ejecutarCierre() {
+  const montoReal = Number(document.getElementById('cierreReal').value);
+  const dejar     = Number(document.getElementById('cierreDejar').value) || 0;
+  if (isNaN(montoReal) || document.getElementById('cierreReal').value === '')
+    return alertUI("Ingresa el monto real contado.");
+  cerrarModalCierre();
+  try {
+    const res  = await fetch(API + '/caja/cerrar', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ montoReal, dejar })
+    });
+    const data = await res.json();
+    if (!data.error) {
+      const tieneDatos = (data.saldo ?? 0) > 0
+                      || (data.ingresos ?? 0) > 0
+                      || (data.apertura ?? 0) > 0
+                      || (data.transferencias ?? 0) > 0;
+
+      if (!tieneDatos) {
+        alertUI("⚠️ El servidor devolvió todo en $0. ¿La caja estaba abierta?");
+        console.warn("Datos del cierre recibidos:", JSON.stringify(data));
+      }
+
+      guardarCierreEnHistorial(data);
+      renderHistorial();
+      imprimirCierre(data);
+      alertUI(tieneDatos ? "✅ Caja cerrada correctamente." : "⚠️ Cierre guardado pero con valores en $0. Revisa si la caja estaba abierta.");
+    } else {
+      alertUI("❌ " + data.error);
+    }
+  } catch { alertUI("❌ Error de conexión."); }
+  cargar();
+}
+
+/* ═══ GUARDAR EN HISTORIAL ═══ */
+function guardarCierreEnHistorial(data) {
+  const ahora    = new Date();
+  const historial = getHistorial();
+  historial.unshift({
+    id:             Date.now(),
+    fecha:          ahora.toLocaleDateString('es-EC', {weekday:'long',year:'numeric',month:'long',day:'numeric'}),
+    hora:           ahora.toLocaleTimeString('es-EC', {hour:'2-digit',minute:'2-digit'}),
+    apertura:       data.apertura       ?? 0,
+    ingresos:       data.ingresos       ?? 0,
+    transferencias: data.transferencias  ?? 0,
+    gastos:         data.gastos         ?? 0,
+    saldo:          data.saldo          ?? 0,
+    esperado:       data.esperado       ?? 0,
+    real:           data.real           ?? 0,
+    diferencia:     data.diferencia     ?? 0,
+    dejar:          data.dejar          ?? 0,
+  });
+  setHistorial(historial);
+}
+
+/* ═══ RENDER HISTORIAL ═══ */
+function renderHistorial() {
+  const historial = getHistorial();
+  const cont = document.getElementById('historialContainer');
+  if (!historial.length) {
+    cont.innerHTML = '<div class="historial-vacio">📭 No hay cierres registrados aún.</div>';
+    return;
+  }
+  cont.innerHTML = historial.map((item, i) => `
+    <div class="hist-item" id="hist-item-${i}">
+      <div class="hist-item-header">
+        <div>
+          <div class="hist-fecha">📅 ${cap(item.fecha)}</div>
+          <div class="hist-hora">🕐 Cerrada a las ${item.hora}</div>
+        </div>
+        <div class="hist-actions">
+          <div class="hist-saldo-badge">$${item.saldo}</div>
+          <button class="btn-toggle-hist" onclick="toggleHist(${i})">Ver ▼</button>
+          <button class="btn-del-dia"     onclick="pedirBorrarDia(${i})">🗑️</button>
+        </div>
+      </div>
+      <div class="hist-item-body" id="hist-body-${i}">
+        <div class="hist-row"><span>Apertura</span><span>$${item.apertura}</span></div>
+        <div class="hist-row"><span>Ventas (efectivo)</span><span>$${item.ingresos}</span></div>
+        <div class="hist-row"><span>Transferencias</span><span>$${item.transferencias}</span></div>
+        <div class="hist-row"><span>Gastos</span><span>− $${item.gastos}</span></div>
+        <div class="hist-row"><span>Saldo total</span>
+          <span style="color:green;font-weight:bold">$${item.saldo}</span></div>
+        <div class="hist-row" style="margin-top:6px"><span>Esperado en caja</span><span>$${item.esperado}</span></div>
+        <div class="hist-row"><span>Real contado</span><span>$${item.real}</span></div>
+        <div class="hist-row">
+          <span>Diferencia</span>
+          <span style="color:${item.diferencia < 0 ? '#d63031' : 'green'}">$${item.diferencia}</span>
+        </div>
+        <div class="hist-row"><span>Dejado en caja</span><span>$${item.dejar}</span></div>
+      </div>
+    </div>`).join('');
+}
+
+function cap(str) { return str ? str.charAt(0).toUpperCase() + str.slice(1) : ''; }
+
+function toggleHist(i) {
+  const body = document.getElementById(`hist-body-${i}`);
+  const btn  = document.querySelector(`#hist-item-${i} .btn-toggle-hist`);
+  const open = body.classList.toggle('abierto');
+  btn.textContent = open ? 'Cerrar ▲' : 'Ver ▼';
+}
+
+/* ═══ BORRAR HISTORIAL ═══ */
+function pedirBorrarDia(i) {
+  const item = getHistorial()[i];
+  if (!item) return;
+  abrirModalPass(
+    '🗑️ Borrar este cierre',
+    `Eliminar cierre del ${cap(item.fecha)} a las ${item.hora}.`,
+    () => { const h = getHistorial(); h.splice(i, 1); setHistorial(h); renderHistorial(); }
+  );
+}
+function pedirBorrarTodo() {
+  const h = getHistorial();
+  if (!h.length) return alertUI('El historial ya está vacío.');
+  abrirModalPass(
+    '🗑️ Borrar TODO el historial',
+    `Se eliminarán ${h.length} cierre(s). Esta acción no se puede deshacer.`,
+    () => { setHistorial([]); renderHistorial(); alertUI('✅ Historial eliminado.'); }
+  );
+}
+
+/* ═══ MODAL CONTRASEÑA ═══ */
+function abrirModalPass(titulo, desc, accion) {
+  document.getElementById('passModalTitulo').textContent = titulo;
+  document.getElementById('passModalDesc').textContent   = desc;
+  document.getElementById('passInput').value             = '';
+  _passAccion = accion;
+  document.getElementById('modalPass').classList.add('activo');
+  setTimeout(() => document.getElementById('passInput').focus(), 100);
+}
+function cancelarModalPass() {
+  document.getElementById('modalPass').classList.remove('activo');
+  document.getElementById('passInput').value = '';
+  _passAccion = null;
+}
+function confirmarModalPass() {
+  if (document.getElementById('passInput').value !== PASSWORD) {
+    document.getElementById('passInput').value = '';
+    document.getElementById('passInput').placeholder = '❌ Contraseña incorrecta';
+    setTimeout(() => {
+      document.getElementById('passInput').placeholder = 'Contraseña';
+      document.getElementById('passInput').focus();
+    }, 1500);
+    return;
+  }
+  const fn = _passAccion;
+  cancelarModalPass();
+  if (fn) fn();
+}
+
+/* ═══ IMPRIMIR CIERRE (OPTIMIZADO PARA ALTA VISIBILIDAD) ═══ */
+function imprimirCierre(data) {
+  const lista = extraerTransferencias(data).length
+    ? extraerTransferencias(data)
+    : _transferenciasList;
+
+  const transHTML = lista.length
+    ? lista.map(t => `
+        <tr>
+          <td><b>${t.banco       || 'S/B'}</b></td>
+          <td><b>${t.comprobante || 'S/N'}</b></td>
+          <td><b>$${t.monto      || 0}</b></td>
+          <td>${t.motivo      || ''}</td>
+        </tr>`).join('')
+    : '<tr><td colspan="4" style="text-align:center; padding:10px 0;">Sin transferencias</td></tr>';
+
+  const gastosHTML = (data.gastosLista && data.gastosLista.length)
+    ? data.gastosLista.map(g => `<div class="gasto-item">• $${g.monto} | ${g.motivo}</div>`).join('')
+    : 'Sin gastos registrados';
+
+  const v = window.open('', '_blank', 'width=450,height=800');
+  v.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Cierre de Caja</title>
+  <style>
+    /* Forzar negro absoluto y eliminar suavizados grises */
+    * { 
+      color: #000000 !important; 
+      background: #ffffff !important; 
+      -webkit-print-color-adjust: exact !important; 
+      print-color-adjust: exact !important;
+    }
+    
+    body { 
+      font-family: 'Arial', 'Helvetica', sans-serif; 
+      width: 76mm; 
+      margin: 0 auto; 
+      padding: 5px; 
+      font-size: 15px; /* Letra base más grande */
+      line-height: 1.4;
+    }
+
+    h2 { 
+      text-align: center; 
+      margin: 10px 0; 
+      font-size: 20px; /* Título imponente */
+      font-weight: 900; 
+      letter-spacing: 0.5px;
+    }
+
+    .sep { 
+      border: none; 
+      border-top: 3px double #000000; /* Separador más grueso y visible */
+      margin: 12px 0; 
+    }
+
+    .info-principal div {
+      margin-bottom: 6px;
+      font-size: 16px; /* Datos clave más grandes */
+    }
+
+    .info-principal b {
+      font-weight: 900;
+    }
+
+    table { 
+      width: 100%; 
+      border-collapse: collapse; 
+      font-size: 14px; 
+      margin-top: 8px; 
+    }
+
+    th { 
+      text-align: left; 
+      border-bottom: 2px solid #000000; 
+      padding: 4px 0; 
+      font-weight: bold; 
+      font-size: 14px;
+    }
+
+    td { 
+      padding: 5px 2px; 
+      vertical-align: top;
+    }
+
+    .gasto-item {
+      font-size: 14px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    /* Sección de totales con fuentes gigantes */
+    .tot { 
+      font-weight: 900; 
+      font-size: 18px; /* Saldo y Esperado gigantes */
+      margin-top: 8px; 
+      border: 1px solid #000000;
+      padding: 6px;
+      text-align: center;
+    }
+    
+    .tot-sm {
+      font-weight: bold;
+      font-size: 16px;
+      margin-top: 5px;
+    }
+
+    .seccion-titulo {
+      font-size: 16px;
+      font-weight: 900;
+      text-transform: uppercase;
+      margin-top: 10px;
+      display: block;
+    }
+
+    @page { 
+      size: 80mm auto; 
+      margin: 0mm; 
+    }
+  </style>
+</head>
+<body>
+
+<h2>NEXUS</h2>
+<h2>CIERRE DE CAJA</h2>
+
+<hr class="sep">
+<div style="font-size: 13px; text-align: center; font-weight: bold;">
+  Fecha: ${new Date().toLocaleString('es-EC', { hour12: true })}
+</div>
+<hr class="sep">
+
+<div class="info-principal">
+  <div>Apertura: <b>$${data.apertura ?? 0}</b></div>
+  <div>Ventas (efectivo): <b>$${data.ingresos ?? 0}</b></div>
+  <div>Gastos: <b>- $${data.gastos ?? 0}</b></div>
+</div>
+
+<hr class="sep">
+<span class="seccion-titulo">💳 Transferencias</span>
+<table>
+  <tr><th>Banco</th><th>Compr.</th><th>Monto</th><th>Mot.</th></tr>
+  ${transHTML}
+</table>
+<div class="tot-sm">Total Transferencias: $${data.transferencias ?? 0}</div>
+
+<hr class="sep">
+<span class="seccion-titulo">📉 Detalle Gastos</span>
+<div style="margin-top: 6px;">
+  ${gastosHTML}
+</div>
+
+<hr class="sep">
+<div class="info-principal">
+  <div>Esperado en caja: <b>$${data.esperado ?? 0}</b></div>
+  <div>Real contado: <b>$${data.real ?? 0}</b></div>
+  <div style="font-size: 18px;">Diferencia: <b style="text-decoration: underline;">$${data.diferencia ?? 0}</b></div>
+</div>
+
+<div class="tot">
+  SALDO TOTAL: $${data.saldo ?? 0}
+</div>
+
+<div class="tot" style="margin-top: 10px;">
+  DEJADO EN CAJA: $${data.dejar ?? 0}
+</div>
+
+<hr class="sep">
+<div style="text-align:center; font-size:13px; font-weight:bold; margin: 15px 0 30px 0;">
+  — COMPROBANTE DE CIERRE —
+</div>
+
+<script>
+  window.onload = () => {
+    setTimeout(() => {
+      window.print();
+      window.close();
+    }, 250);
+  };
+<\/script>
+</body>
+</html>`);
+  v.document.close();
+}
+/* ═══ TOAST ═══ */
+function alertUI(msg) {
+  let t = document.getElementById('_toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = '_toast';
+    Object.assign(t.style, {
+      position:'fixed', bottom:'28px', left:'50%', transform:'translateX(-50%)',
+      background:'#1e272e', color:'#fff', padding:'12px 24px', borderRadius:'10px',
+      fontSize:'14px', fontWeight:'bold', zIndex:'9999',
+      boxShadow:'0 6px 24px rgba(0,0,0,0.25)', transition:'opacity .3s', opacity:'0',
+      whiteSpace:'nowrap'
+    });
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = '1';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.style.opacity = '0'; }, 3000);
+}
+
+/* ═══ TECLADO ═══ */
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { cancelarModalPass(); cerrarModalCierre(); }
+  if (e.key === 'Enter' && document.getElementById('modalPass').classList.contains('activo'))
+    confirmarModalPass();
+});
+
+/* ═══ DIAGNÓSTICO ═══ */
+async function diagnosticar() {
+  try {
+    const [rCaja, rVentas] = await Promise.all([
+      fetch(API + '/caja').then(r => r.json()).catch(() => ({error: 'sin respuesta'})),
+      fetch(API + '/ventas').then(r => r.json()).catch(() => ({error: 'sin respuesta'}))
+    ]);
+
+    const msg = `
+═══ DATOS DE CAJA ═══
+Apertura:       $${rCaja.apertura ?? '?'}
+Ventas ef.:     $${rCaja.ingresos ?? '?'}
+Transferencias: $${rCaja.transferencias ?? '?'}
+Gastos:         $${rCaja.gastos ?? '?'}
+Saldo:          $${rCaja.saldo ?? '?'}
+Error:          ${rCaja.error ?? 'ninguno'}
+
+Claves recibidas: ${Object.keys(rCaja).join(', ')}
+
+═══ VENTAS HOY ═══
+${JSON.stringify(rVentas).substring(0, 300)}`;
+
+    alert(msg);
+  } catch(e) {
+    alert('Error al conectar: ' + e.message);
+  }
+}
+
+/* ═══ INIT ═══ */
+cargar();
+renderHistorial();
+</script>
+</body>
+</html>

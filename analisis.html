@@ -206,6 +206,21 @@ function horaEC(fecha) {
   return new Date(fecha).toLocaleTimeString("es-EC", { timeZone: TZ });
 }
 
+// ===== BADGE TIPO DE PAGO =====
+function badgeTipoPago(tipo) {
+  const t = (tipo || "").toLowerCase();
+  if (t === "credito" || t === "crédito") {
+    return ` <span style="background:#f39c12;color:white;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:bold;">📝 CRÉDITO</span>`;
+  }
+  if (t === "efectivo") {
+    return ` <span style="background:#27ae60;color:white;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:bold;">💵 EFECTIVO</span>`;
+  }
+  if (t === "transferencia") {
+    return ` <span style="background:#2980b9;color:white;padding:2px 9px;border-radius:10px;font-size:11px;font-weight:bold;">🏦 TRANSFERENCIA</span>`;
+  }
+  return "";
+}
+
 // ===== MODAL =====
 let _accionPendiente = null;
 function abrirModal(desc, accion) {
@@ -497,7 +512,7 @@ function mostrar(lista) {
             📱 ${v.celular || "-"}<br>
             🆔 ${v.cedula  || "-"}<br>
             📧 ${v.correo  || "-"}<br>
-            💰 $${v.total  || 0}<br>
+            💰 $${v.total  || 0} ${badgeTipoPago(v.tipo)}<br>
             🕒 ${horaEC(v.fecha)}<br>
             ${prods}
           </div>`;
@@ -541,7 +556,8 @@ function buscarProducto() {
           cedula:   v.cedula  || "-",
           celular:  v.celular || "-",
           fecha:    v.fecha,
-          total:    v.total || 0
+          total:    v.total || 0,
+          tipoPago: v.tipo || ""
         });
       }
     });
@@ -562,7 +578,7 @@ function buscarProducto() {
         👤 ${c.cliente} ${c.cedula !== "-" ? "(" + c.cedula + ")" : ""}<br>
         📱 ${c.celular}<br>
         📅 ${fechaEC(c.fecha)} 🕒 ${horaEC(c.fecha)}<br>
-        💰 Total venta: $${c.total}
+        💰 Total venta: $${c.total} ${badgeTipoPago(c.tipoPago)}
       </li>`;
   });
 }

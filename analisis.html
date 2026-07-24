@@ -193,6 +193,23 @@ const API   = "https://app-zobz.onrender.com";
 const CLAVE = "agro123";
 const TZ    = "America/Guayaquil"; // zona horaria de Ecuador (fija, sin importar dónde se abra el dashboard)
 
+/* ══════════════════════════════════════
+   DATOS DEL NEGOCIO (para el ticket / SRI)
+   — mismos datos que en index.html (Venta) —
+══════════════════════════════════════ */
+const NEGOCIO = {
+  razonSocial:  "AGRO NARANJITO",
+  nombreComercial: "AGRO NARANJITO #1",
+  ruc: "0940166169001",
+  establecimiento: "001",
+  puntoEmision: "001",
+  direccionMatriz: "AV. NARANJITO Y 5 DE OCTUBRE",
+  direccionEstablecimiento: "AV. NARANJITO Y 5 DE OCTUBRE",
+  obligadoContabilidad: "NO",
+  ambiente: "PRODUCCIÓN",
+  telefono: ""
+};
+
 let ventas   = [];
 let chart1, chart2;
 let _porDia  = {};
@@ -458,44 +475,127 @@ async function borrarDia(fecha) {
   } catch (err) { alert("Error al borrar"); }
 }
 
+// ===== CONSTRUIR TICKET (mismo diseño que el ticket de Venta / index.html) =====
+// Recibe una venta guardada (objeto v) y arma el HTML del comprobante estilo
+// ticket térmico (logo AGRO NARANJITO, RUC, NOTA DE VENTA, etc.)
+function construirTicketDesdeVenta(v) {
+  const cliente = v.cliente || "Cliente no registrado";
+  const cedula  = v.cedula  || "-";
+  const cedulaMostrar = cedula === "9999999999999" ? "CONSUMIDOR FINAL" : cedula;
+  const productosArr = Array.isArray(v.productos) ? v.productos : [];
+
+  let subtotal = (v.subtotal !== undefined && v.subtotal !== null) ? Number(v.subtotal) : null;
+  if (subtotal === null) {
+    subtotal = productosArr.reduce((s, p) => {
+      const cantidad = p.cantidad || 0;
+      const sub = (p.subtotal !== undefined && p.subtotal !== null) ? Number(p.subtotal) : Number(p.precio || 0) * cantidad;
+      return s + sub;
+    }, 0);
+  }
+
+  const pct = Number(v.descuentoPct || 0);
+  const descuentoMonto = (v.descuentoMonto !== undefined && v.descuentoMonto !== null) ? Number(v.descuentoMonto) : subtotal * (pct / 100);
+  const tasaPct = Number(v.tasaInteres || 0);
+  const montoInteres = Number(v.montoInteres || 0);
+  const meses = Number(v.meses || 0);
+  const totalFinal = (v.total !== undefined && v.total !== null) ? Number(v.total) : (subtotal - descuentoMonto + montoInteres);
+  const pago = Number(v.pago || 0);
+  const vuelto = Number(v.vuelto || 0);
+  const bancoNombre = v.banco || "";
+  const bancoCuenta = v.cuenta || "";
+  const comprobante = v.comprobante || "";
+  const numComprobante = v.numComprobante || "-";
+  const tipo = (v.tipo || "efectivo").toLowerCase();
+  const fecha = new Date(v.fecha).toLocaleString("es-EC", { timeZone: TZ, dateStyle: "short", timeStyle: "short" });
+
+  let html = `
+    <div style="text-align:center;margin-bottom:4px">
+      <svg viewBox="0 0 680 260" style="width:100%;max-width:200px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${NEGOCIO.nombreComercial}">
+        <g fill="none" stroke="#000000">
+          <rect x="332" y="35" width="16" height="155" rx="8" fill="#000000" stroke="#000000" stroke-width="2"/>
+          <line x1="332" y1="75" x2="348" y2="75" stroke="#ffffff" stroke-width="2"/>
+          <line x1="332" y1="115" x2="348" y2="115" stroke="#ffffff" stroke-width="2"/>
+          <line x1="332" y1="155" x2="348" y2="155" stroke="#ffffff" stroke-width="2"/>
+          <path d="M340 40 Q 300 20 262 34" stroke-width="9" stroke-linecap="round"/>
+          <path d="M340 40 Q 380 20 418 34" stroke-width="9" stroke-linecap="round"/>
+          <path d="M340 55 Q 315 40 292 50" stroke-width="7" stroke-linecap="round"/>
+        </g>
+        <text x="340" y="105" text-anchor="middle" font-family="Arial, sans-serif" font-weight="800" font-size="66" letter-spacing="3" fill="#000000">AGRO</text>
+        <text x="340" y="168" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="45" letter-spacing="5" fill="#000000">NARANJITO</text>
+        <rect x="140" y="188" width="400" height="14" rx="7" fill="#000000" stroke="#000000" stroke-width="2"/>
+        <line x1="220" y1="188" x2="220" y2="202" stroke="#ffffff" stroke-width="2"/>
+        <line x1="300" y1="188" x2="300" y2="202" stroke="#ffffff" stroke-width="2"/>
+        <line x1="380" y1="188" x2="380" y2="202" stroke="#ffffff" stroke-width="2"/>
+        <line x1="460" y1="188" x2="460" y2="202" stroke="#ffffff" stroke-width="2"/>
+        <g fill="none" stroke="#000000">
+          <path d="M150 190 Q 110 175 100 140" stroke-width="9" stroke-linecap="round"/>
+          <path d="M150 190 Q 120 205 108 225" stroke-width="7" stroke-linecap="round"/>
+          <path d="M530 190 Q 570 175 580 140" stroke-width="9" stroke-linecap="round"/>
+          <path d="M530 190 Q 560 205 572 225" stroke-width="7" stroke-linecap="round"/>
+        </g>
+      </svg>
+    </div>
+    <div class="sub">RUC: ${NEGOCIO.ruc}</div>
+    <div class="sub">${NEGOCIO.direccionEstablecimiento}</div>
+    ${NEGOCIO.telefono ? `<div class="sub">Tel: ${NEGOCIO.telefono}</div>` : ""}
+    <div class="sub">Obligado a llevar contabilidad: ${NEGOCIO.obligadoContabilidad}</div>
+    <hr>
+    <div class="sub"><b>NOTA DE VENTA</b></div>
+    <div class="sub">N°: ${numComprobante}</div>
+    <div class="sub">${fecha}</div>
+    <hr>
+    <p><b>Cliente:</b> ${cliente}</p>
+    <p><b>Cédula/RUC:</b> ${cedulaMostrar}</p>
+    <hr>
+  `;
+  productosArr.forEach(p => {
+    const cantidad = p.cantidad || 0;
+    const sub = (p.subtotal !== undefined && p.subtotal !== null) ? Number(p.subtotal) : Number(p.precio || 0) * cantidad;
+    html += `<div class="fila"><span class="nom">${p.nombre || "-"} x${cantidad}</span><span class="pre">$${sub.toFixed(2)}</span></div>`;
+  });
+  html += `<hr><p>Subtotal: $${subtotal.toFixed(2)}</p>`;
+  if (pct > 0) html += `<p>Descuento (${pct}%): -$${descuentoMonto.toFixed(2)}</p>`;
+  if (tipo === "credito") {
+    html += `<p>Interés (${tasaPct}%): $${montoInteres.toFixed(2)}</p>`;
+    html += `<p>Meses: ${meses}</p>`;
+  }
+  html += `<hr><div class="tot"><span>TOTAL</span><span>$${totalFinal.toFixed(2)}</span></div><hr>`;
+  if (tipo === "efectivo") {
+    html += `<p>Pago: $${pago.toFixed(2)}</p><p>Vuelto: $${vuelto.toFixed(2)}</p>`;
+  }
+  if (tipo === "transferencia") {
+    html += `<p>Banco: ${bancoNombre}</p><p>Cuenta: ${bancoCuenta}</p><p>Comprobante: ${comprobante}</p>`;
+  }
+  html += `<p style="font-size:11px;color:#555;margin-top:4px">Pago: ${tipo}</p>`;
+  html += `<div class="pie">Este documento es un comprobante interno de venta.<br>¡Gracias por su compra! Vuelva pronto 😊</div>`;
+  return html;
+}
+
+// CSS del ticket térmico (mismo estilo visual que el #ticketPrint de index.html)
+const TICKET_CSS = `
+  @page { size: 80mm auto; margin: 3mm; }
+  * { box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; width: 72mm; margin: 0 auto; font-size: 15px; color: #000; font-weight: 500; }
+  h2 { text-align: center; margin: 4px 0; font-size: 18px; font-weight: 800; }
+  .sub { text-align: center; font-size: 14px; color: #000; margin: 0 0 4px; font-weight: 600; }
+  p { margin: 3px 0; font-size: 15px; }
+  hr { border: none; border-top: 2px dashed #000; margin: 5px 0; }
+  .fila { display: flex; justify-content: space-between; margin: 3px 0; font-size: 15px; }
+  .nom { flex: 1; padding-right: 4px; }
+  .pre { white-space: nowrap; font-weight: bold; }
+  .tot { display: flex; justify-content: space-between; font-size: 18px; font-weight: 800; margin: 4px 0; }
+  .pie { text-align: center; font-size: 13px; color: #000; margin-top: 8px; font-weight: 600; }
+  svg { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+`;
+
 // ===== IMPRIMIR FACTURA DE UNA VENTA =====
-// Abre una ventana nueva con formato de recibo (cliente, fecha/hora, productos y total)
-// y lanza el diálogo de impresión automáticamente.
+// Abre una ventana nueva con el mismo diseño de ticket que se usa al facturar
+// en Venta (index.html) y lanza el diálogo de impresión automáticamente.
 function imprimirFactura(ventaId) {
   const v = ventas.find(x => extraerId(x._id) === ventaId);
   if (!v) { alert("No se encontró esta venta"); return; }
 
-  let filasProductos = "";
-  let totalCalculado = 0;
-  if (Array.isArray(v.productos) && v.productos.length) {
-    v.productos.forEach(p => {
-      const cantidad = p.cantidad || 0;
-      // Se intenta usar el subtotal guardado; si no existe, se calcula con precio*cantidad
-      let subtotal = (p.subtotal !== undefined && p.subtotal !== null) ? Number(p.subtotal) : null;
-      if (subtotal === null) {
-        const precio = Number(p.precio || 0);
-        subtotal = precio * cantidad;
-      }
-      totalCalculado += subtotal;
-      const nombre = (p.nombre || "-").toString();
-      filasProductos += `
-        <tr>
-          <td style="padding:4px 2px;">${nombre}</td>
-          <td style="padding:4px 2px;text-align:center;">${cantidad}</td>
-          <td style="padding:4px 2px;text-align:right;">$${subtotal.toFixed(2)}</td>
-        </tr>`;
-    });
-  } else {
-    filasProductos = `<tr><td colspan="3" style="padding:6px;text-align:center;color:#888;">Sin productos registrados</td></tr>`;
-  }
-
-  const totalFinal = (v.total !== undefined && v.total !== null) ? Number(v.total) : totalCalculado;
-  const fechaTxt = fechaEC(v.fecha);
-  const horaTxt  = horaEC(v.fecha);
-  const cliente  = v.cliente || "Cliente no registrado";
-  const cedula   = v.cedula  || "-";
-  const celular  = v.celular || "-";
-  const tipoPago = (v.tipo || "-").toUpperCase();
+  const ticketHTML = construirTicketDesdeVenta(v);
 
   const ventana = window.open("", "_blank", "width=400,height=650");
   if (!ventana) { alert("El navegador bloqueó la ventana de impresión. Permite las ventanas emergentes para este sitio."); return; }
@@ -505,53 +605,22 @@ function imprimirFactura(ventaId) {
     <html>
     <head>
       <meta charset="UTF-8">
-      <title>Factura - ${cliente}</title>
-      <style>
-        body { font-family: 'Courier New', monospace; padding: 24px; max-width: 340px; margin: 0 auto; color: #111; }
-        h2 { text-align: center; margin: 0 0 4px; font-size: 20px; }
-        .subtitulo { text-align: center; font-size: 12px; color: #555; margin-bottom: 14px; }
-        .linea { border-top: 1px dashed #333; margin: 12px 0; }
-        .info p { margin: 3px 0; font-size: 13px; }
-        table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; }
-        thead th { border-bottom: 1px solid #333; padding: 4px 2px; text-align: left; font-size: 12px; }
-        .total { font-size: 17px; font-weight: bold; text-align: right; margin-top: 14px; }
-        .badge { display: inline-block; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 10px; background: #eee; }
-        .pie { text-align: center; font-size: 11px; color: #777; margin-top: 20px; }
-        @media print {
-          body { padding: 10px; }
-        }
-      </style>
+      <title>Factura - ${v.cliente || "Cliente"}</title>
+      <style>${TICKET_CSS}</style>
     </head>
     <body onload="window.print()">
-      <h2>🧾 NEXUS</h2>
-      <div class="subtitulo">Comprobante de venta</div>
-      <div class="linea"></div>
-      <div class="info">
-        <p><b>Cliente:</b> ${cliente}</p>
-        <p><b>Cédula:</b> ${cedula}</p>
-        <p><b>Celular:</b> ${celular}</p>
-        <p><b>Fecha:</b> ${fechaTxt} &nbsp; <b>Hora:</b> ${horaTxt}</p>
-        <p><b>Pago:</b> <span class="badge">${tipoPago}</span></p>
-      </div>
-      <div class="linea"></div>
-      <table>
-        <thead>
-          <tr><th>Producto</th><th style="text-align:center;">Cant</th><th style="text-align:right;">Subt.</th></tr>
-        </thead>
-        <tbody>${filasProductos}</tbody>
-      </table>
-      <div class="linea"></div>
-      <div class="total">TOTAL: $${totalFinal.toFixed(2)}</div>
-      <div class="pie">¡Gracias por su compra!</div>
+      ${ticketHTML}
     </body>
     </html>
   `);
   ventana.document.close();
 }
 
-// ===== IMPRIMIR TODAS LAS VENTAS DE UN DÍA =====
-// Genera un solo documento con todas las facturas del día, una tras otra,
-// para imprimir de corrido (cada venta se separa con un salto de página).
+// ===== IMPRIMIR TODAS LAS VENTAS DE UN DÍA (EN UNA SOLA HOJA) =====
+// Genera un solo documento continuo con todas las facturas del día, una tras
+// otra, con el mismo diseño de ticket que en Venta, separadas por una línea
+// punteada. No se fuerza salto de página entre facturas: todo sale en una
+// sola hoja/rollo continuo, ideal para impresoras térmicas.
 function imprimirDia(fecha) {
   const items = ventas.filter(v => fechaEC(v.fecha) === fecha);
   if (!items.length) { alert("No hay ventas para ese día"); return; }
@@ -563,53 +632,18 @@ function imprimirDia(fecha) {
   let facturasHTML = "";
 
   items.forEach((v, idx) => {
-    let filasProductos = "";
-    let totalCalculado = 0;
-    if (Array.isArray(v.productos) && v.productos.length) {
-      v.productos.forEach(p => {
-        const cantidad = p.cantidad || 0;
-        let subtotal = (p.subtotal !== undefined && p.subtotal !== null) ? Number(p.subtotal) : null;
-        if (subtotal === null) {
-          const precio = Number(p.precio || 0);
-          subtotal = precio * cantidad;
-        }
-        totalCalculado += subtotal;
-        filasProductos += `
-          <tr>
-            <td style="padding:4px 2px;">${p.nombre || "-"}</td>
-            <td style="padding:4px 2px;text-align:center;">${cantidad}</td>
-            <td style="padding:4px 2px;text-align:right;">$${subtotal.toFixed(2)}</td>
-          </tr>`;
-      });
-    } else {
-      filasProductos = `<tr><td colspan="3" style="padding:6px;text-align:center;color:#888;">Sin productos registrados</td></tr>`;
-    }
-
-    const totalFinal = (v.total !== undefined && v.total !== null) ? Number(v.total) : totalCalculado;
+    const totalFinal = (v.total !== undefined && v.total !== null)
+      ? Number(v.total)
+      : (Array.isArray(v.productos) ? v.productos.reduce((s, p) => {
+          const cantidad = p.cantidad || 0;
+          const sub = (p.subtotal !== undefined && p.subtotal !== null) ? Number(p.subtotal) : Number(p.precio || 0) * cantidad;
+          return s + sub;
+        }, 0) : 0);
     totalDia += totalFinal;
 
     facturasHTML += `
-      <div class="factura" style="${idx > 0 ? 'page-break-before: always;' : ''}">
-        <h2>🧾 NEXUS</h2>
-        <div class="subtitulo">Comprobante de venta</div>
-        <div class="linea"></div>
-        <div class="info">
-          <p><b>Cliente:</b> ${v.cliente || "Cliente no registrado"}</p>
-          <p><b>Cédula:</b> ${v.cedula || "-"}</p>
-          <p><b>Celular:</b> ${v.celular || "-"}</p>
-          <p><b>Fecha:</b> ${fechaEC(v.fecha)} &nbsp; <b>Hora:</b> ${horaEC(v.fecha)}</p>
-          <p><b>Pago:</b> <span class="badge">${(v.tipo || "-").toUpperCase()}</span></p>
-        </div>
-        <div class="linea"></div>
-        <table>
-          <thead>
-            <tr><th>Producto</th><th style="text-align:center;">Cant</th><th style="text-align:right;">Subt.</th></tr>
-          </thead>
-          <tbody>${filasProductos}</tbody>
-        </table>
-        <div class="linea"></div>
-        <div class="total">TOTAL: $${totalFinal.toFixed(2)}</div>
-        <div class="pie">¡Gracias por su compra!</div>
+      <div class="factura" style="${idx > 0 ? 'border-top: 3px dashed #000; margin-top: 14px; padding-top: 10px;' : ''}">
+        ${construirTicketDesdeVenta(v)}
       </div>`;
   });
 
@@ -623,21 +657,9 @@ function imprimirDia(fecha) {
       <meta charset="UTF-8">
       <title>Ventas del día ${fecha}</title>
       <style>
-        body { font-family: 'Courier New', monospace; padding: 24px; max-width: 340px; margin: 0 auto; color: #111; }
-        .factura h2 { text-align: center; margin: 0 0 4px; font-size: 20px; }
-        .subtitulo { text-align: center; font-size: 12px; color: #555; margin-bottom: 14px; }
-        .linea { border-top: 1px dashed #333; margin: 12px 0; }
-        .info p { margin: 3px 0; font-size: 13px; }
-        table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; }
-        thead th { border-bottom: 1px solid #333; padding: 4px 2px; text-align: left; font-size: 12px; }
-        .total { font-size: 17px; font-weight: bold; text-align: right; margin-top: 14px; }
-        .badge { display: inline-block; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 10px; background: #eee; }
-        .pie { text-align: center; font-size: 11px; color: #777; margin-top: 20px; margin-bottom: 20px; }
-        .resumen-dia { text-align: center; border: 2px solid #333; border-radius: 8px; padding: 12px; margin-bottom: 20px; }
+        ${TICKET_CSS}
+        .resumen-dia { text-align: center; border: 2px solid #000; border-radius: 8px; padding: 12px; margin-bottom: 16px; }
         .resumen-dia h3 { margin: 0 0 6px; }
-        @media print {
-          body { padding: 10px; }
-        }
       </style>
     </head>
     <body onload="window.print()">

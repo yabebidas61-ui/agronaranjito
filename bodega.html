@@ -17,6 +17,9 @@
     table { width: 100%; border-collapse: collapse; }
     th, td { padding: 10px; border-bottom: 1px solid #ddd; text-align: center; }
 
+    .badge-percha { background: #dff1fb; color: #1a6a9a; padding: 2px 9px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+    .badge-sin-percha { background: #eee; color: #888; padding: 2px 9px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+
     /* ===== MODAL STOCK ===== */
     .modal-overlay {
       display: none;
@@ -125,6 +128,7 @@
       <input id="precioVenta" type="number" placeholder="Precio venta">
       <input id="stock" type="number" placeholder="Stock">
       <input id="caducidad" type="date" title="Fecha de Caducidad">
+      <input id="percha" placeholder="Percha (ej: A1, Pasillo 2)">
       <button onclick="guardar()">Guardar</button>
     </div>
 
@@ -132,7 +136,7 @@
       <h3>📋 Inventario</h3>
       <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
         <span style="font-size:18px;">🔍</span>
-        <input id="buscar" placeholder="Buscar producto..." onkeyup="filtrar()" style="flex:1; padding:10px; border-radius:8px; border:1px solid #ccc;">
+        <input id="buscar" placeholder="Buscar producto o percha..." onkeyup="filtrar()" style="flex:1; padding:10px; border-radius:8px; border:1px solid #ccc;">
       </div>
       <table>
         <thead>
@@ -143,6 +147,7 @@
             <th>Venta</th>
             <th>Stock</th>
             <th>Caducidad</th>
+            <th>Percha</th>
             <th>Acciones</th>
           </tr>
         </thead>
@@ -192,6 +197,8 @@
     <input type="number" id="edit-venta" placeholder="0.00">
     <label>Fecha de Caducidad</label>
     <input type="date" id="edit-caducidad">
+    <label>Percha</label>
+    <input type="text" id="edit-percha" placeholder="Ej: A1, Pasillo 2">
     <div class="modal-btns">
       <button class="btn-cancelar" onclick="cerrarModal('modalEditar')">Cancelar</button>
       <button class="btn-confirmar" onclick="confirmarEditar()">💾 Guardar</button>
@@ -220,7 +227,7 @@ const PASSWORD = "agro123";
 
 const API = location.hostname === "localhost"
   ? "http://localhost:3000"
-  : "https://agronaranjito-1.onrender.com";
+  : "https://app-zobz.onrender.com";
 
 let productos = [];
 let stockIdActual = null;
@@ -238,7 +245,8 @@ function filtrar() {
   let t = document.getElementById("buscar").value.toLowerCase().trim();
   const filtrados = productos.filter(p =>
     (p.nombre || "").toLowerCase().includes(t) ||
-    (p.codigo || "").toLowerCase().includes(t)
+    (p.codigo || "").toLowerCase().includes(t) ||
+    (p.percha || "").toLowerCase().includes(t)
   );
   renderTabla(filtrados);
 }
@@ -259,7 +267,7 @@ async function cargar() {
 function renderTabla(lista) {
   const tabla = document.getElementById('tabla');
   if (lista.length === 0) {
-    tabla.innerHTML = `<tr><td colspan="7">No hay productos</td></tr>`;
+    tabla.innerHTML = `<tr><td colspan="8">No hay productos</td></tr>`;
     return;
   }
   let html = "";
@@ -282,6 +290,10 @@ function renderTabla(lista) {
         caducidadBadge = `<span class="badge-por-vencer">⏳ Próximo (${diffDias} d)</span>`;
     }
 
+    let perchaBadge = p.percha
+      ? `<span class="badge-percha">📍 ${p.percha}</span>`
+      : `<span class="badge-sin-percha">Sin asignar</span>`;
+
     html += `
       <tr>
         <td>${p.codigo || '-'}</td>
@@ -290,6 +302,7 @@ function renderTabla(lista) {
         <td>$${p.precioVenta}</td>
         <td>${p.stock} ${stockBadge}</td>
         <td>${caducidadTexto} ${caducidadBadge}</td>
+        <td>${perchaBadge}</td>
         <td>
           <button onclick="abrirModalEditar('${p._id}')">✏️ Editar</button>
           <button onclick="abrirModalStock('${p._id}')">📦 Stock</button>
@@ -307,7 +320,8 @@ async function guardar() {
   let precioVentaVal = document.getElementById("precioVenta").value;
   let stockVal = document.getElementById("stock").value;
   let caducidadVal = document.getElementById("caducidad").value;
-  
+  let perchaVal = document.getElementById("percha").value.trim();
+
   if (!nombreVal || !precioVentaVal || !stockVal) return alert("Completa los datos obligatorios");
 
   await fetch(API + '/productos', {
@@ -319,7 +333,8 @@ async function guardar() {
       precioCompra: Number(document.getElementById("precioCompra").value),
       precioVenta: Number(precioVentaVal),
       stock: Number(stockVal),
-      caducidad: caducidadVal ? caducidadVal : null
+      caducidad: caducidadVal ? caducidadVal : null,
+      percha: perchaVal || null
     })
   });
   limpiar();
@@ -336,6 +351,7 @@ function abrirModalEditar(id) {
   document.getElementById("edit-compra").value = p.precioCompra || "";
   document.getElementById("edit-venta").value = p.precioVenta || "";
   document.getElementById("edit-caducidad").value = p.caducidad ? p.caducidad.split('T')[0] : "";
+  document.getElementById("edit-percha").value = p.percha || "";
   document.getElementById("modalEditar").classList.add("activo");
 }
 
@@ -353,7 +369,8 @@ async function confirmarEditar() {
       nombre,
       precioCompra: Number(document.getElementById("edit-compra").value),
       precioVenta: Number(venta),
-      caducidad: document.getElementById("edit-caducidad").value || null
+      caducidad: document.getElementById("edit-caducidad").value || null,
+      percha: document.getElementById("edit-percha").value.trim() || null
     })
   });
   cerrarModal("modalEditar");
@@ -462,6 +479,7 @@ function limpiar() {
   document.getElementById("precioVenta").value = "";
   document.getElementById("stock").value = "";
   document.getElementById("caducidad").value = "";
+  document.getElementById("percha").value = "";
 }
 
 cargar();

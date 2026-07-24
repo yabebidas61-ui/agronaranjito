@@ -458,6 +458,201 @@ async function borrarDia(fecha) {
   } catch (err) { alert("Error al borrar"); }
 }
 
+// ===== IMPRIMIR FACTURA DE UNA VENTA =====
+// Abre una ventana nueva con formato de recibo (cliente, fecha/hora, productos y total)
+// y lanza el diálogo de impresión automáticamente.
+function imprimirFactura(ventaId) {
+  const v = ventas.find(x => extraerId(x._id) === ventaId);
+  if (!v) { alert("No se encontró esta venta"); return; }
+
+  let filasProductos = "";
+  let totalCalculado = 0;
+  if (Array.isArray(v.productos) && v.productos.length) {
+    v.productos.forEach(p => {
+      const cantidad = p.cantidad || 0;
+      // Se intenta usar el subtotal guardado; si no existe, se calcula con precio*cantidad
+      let subtotal = (p.subtotal !== undefined && p.subtotal !== null) ? Number(p.subtotal) : null;
+      if (subtotal === null) {
+        const precio = Number(p.precio || 0);
+        subtotal = precio * cantidad;
+      }
+      totalCalculado += subtotal;
+      const nombre = (p.nombre || "-").toString();
+      filasProductos += `
+        <tr>
+          <td style="padding:4px 2px;">${nombre}</td>
+          <td style="padding:4px 2px;text-align:center;">${cantidad}</td>
+          <td style="padding:4px 2px;text-align:right;">$${subtotal.toFixed(2)}</td>
+        </tr>`;
+    });
+  } else {
+    filasProductos = `<tr><td colspan="3" style="padding:6px;text-align:center;color:#888;">Sin productos registrados</td></tr>`;
+  }
+
+  const totalFinal = (v.total !== undefined && v.total !== null) ? Number(v.total) : totalCalculado;
+  const fechaTxt = fechaEC(v.fecha);
+  const horaTxt  = horaEC(v.fecha);
+  const cliente  = v.cliente || "Cliente no registrado";
+  const cedula   = v.cedula  || "-";
+  const celular  = v.celular || "-";
+  const tipoPago = (v.tipo || "-").toUpperCase();
+
+  const ventana = window.open("", "_blank", "width=400,height=650");
+  if (!ventana) { alert("El navegador bloqueó la ventana de impresión. Permite las ventanas emergentes para este sitio."); return; }
+
+  ventana.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>Factura - ${cliente}</title>
+      <style>
+        body { font-family: 'Courier New', monospace; padding: 24px; max-width: 340px; margin: 0 auto; color: #111; }
+        h2 { text-align: center; margin: 0 0 4px; font-size: 20px; }
+        .subtitulo { text-align: center; font-size: 12px; color: #555; margin-bottom: 14px; }
+        .linea { border-top: 1px dashed #333; margin: 12px 0; }
+        .info p { margin: 3px 0; font-size: 13px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; }
+        thead th { border-bottom: 1px solid #333; padding: 4px 2px; text-align: left; font-size: 12px; }
+        .total { font-size: 17px; font-weight: bold; text-align: right; margin-top: 14px; }
+        .badge { display: inline-block; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 10px; background: #eee; }
+        .pie { text-align: center; font-size: 11px; color: #777; margin-top: 20px; }
+        @media print {
+          body { padding: 10px; }
+        }
+      </style>
+    </head>
+    <body onload="window.print()">
+      <h2>🧾 NEXUS</h2>
+      <div class="subtitulo">Comprobante de venta</div>
+      <div class="linea"></div>
+      <div class="info">
+        <p><b>Cliente:</b> ${cliente}</p>
+        <p><b>Cédula:</b> ${cedula}</p>
+        <p><b>Celular:</b> ${celular}</p>
+        <p><b>Fecha:</b> ${fechaTxt} &nbsp; <b>Hora:</b> ${horaTxt}</p>
+        <p><b>Pago:</b> <span class="badge">${tipoPago}</span></p>
+      </div>
+      <div class="linea"></div>
+      <table>
+        <thead>
+          <tr><th>Producto</th><th style="text-align:center;">Cant</th><th style="text-align:right;">Subt.</th></tr>
+        </thead>
+        <tbody>${filasProductos}</tbody>
+      </table>
+      <div class="linea"></div>
+      <div class="total">TOTAL: $${totalFinal.toFixed(2)}</div>
+      <div class="pie">¡Gracias por su compra!</div>
+    </body>
+    </html>
+  `);
+  ventana.document.close();
+}
+
+// ===== IMPRIMIR TODAS LAS VENTAS DE UN DÍA =====
+// Genera un solo documento con todas las facturas del día, una tras otra,
+// para imprimir de corrido (cada venta se separa con un salto de página).
+function imprimirDia(fecha) {
+  const items = ventas.filter(v => fechaEC(v.fecha) === fecha);
+  if (!items.length) { alert("No hay ventas para ese día"); return; }
+
+  // Orden: de más antigua a más reciente (orden natural del día)
+  items.sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+
+  let totalDia = 0;
+  let facturasHTML = "";
+
+  items.forEach((v, idx) => {
+    let filasProductos = "";
+    let totalCalculado = 0;
+    if (Array.isArray(v.productos) && v.productos.length) {
+      v.productos.forEach(p => {
+        const cantidad = p.cantidad || 0;
+        let subtotal = (p.subtotal !== undefined && p.subtotal !== null) ? Number(p.subtotal) : null;
+        if (subtotal === null) {
+          const precio = Number(p.precio || 0);
+          subtotal = precio * cantidad;
+        }
+        totalCalculado += subtotal;
+        filasProductos += `
+          <tr>
+            <td style="padding:4px 2px;">${p.nombre || "-"}</td>
+            <td style="padding:4px 2px;text-align:center;">${cantidad}</td>
+            <td style="padding:4px 2px;text-align:right;">$${subtotal.toFixed(2)}</td>
+          </tr>`;
+      });
+    } else {
+      filasProductos = `<tr><td colspan="3" style="padding:6px;text-align:center;color:#888;">Sin productos registrados</td></tr>`;
+    }
+
+    const totalFinal = (v.total !== undefined && v.total !== null) ? Number(v.total) : totalCalculado;
+    totalDia += totalFinal;
+
+    facturasHTML += `
+      <div class="factura" style="${idx > 0 ? 'page-break-before: always;' : ''}">
+        <h2>🧾 NEXUS</h2>
+        <div class="subtitulo">Comprobante de venta</div>
+        <div class="linea"></div>
+        <div class="info">
+          <p><b>Cliente:</b> ${v.cliente || "Cliente no registrado"}</p>
+          <p><b>Cédula:</b> ${v.cedula || "-"}</p>
+          <p><b>Celular:</b> ${v.celular || "-"}</p>
+          <p><b>Fecha:</b> ${fechaEC(v.fecha)} &nbsp; <b>Hora:</b> ${horaEC(v.fecha)}</p>
+          <p><b>Pago:</b> <span class="badge">${(v.tipo || "-").toUpperCase()}</span></p>
+        </div>
+        <div class="linea"></div>
+        <table>
+          <thead>
+            <tr><th>Producto</th><th style="text-align:center;">Cant</th><th style="text-align:right;">Subt.</th></tr>
+          </thead>
+          <tbody>${filasProductos}</tbody>
+        </table>
+        <div class="linea"></div>
+        <div class="total">TOTAL: $${totalFinal.toFixed(2)}</div>
+        <div class="pie">¡Gracias por su compra!</div>
+      </div>`;
+  });
+
+  const ventana = window.open("", "_blank", "width=420,height=700");
+  if (!ventana) { alert("El navegador bloqueó la ventana de impresión. Permite las ventanas emergentes para este sitio."); return; }
+
+  ventana.document.write(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <title>Ventas del día ${fecha}</title>
+      <style>
+        body { font-family: 'Courier New', monospace; padding: 24px; max-width: 340px; margin: 0 auto; color: #111; }
+        .factura h2 { text-align: center; margin: 0 0 4px; font-size: 20px; }
+        .subtitulo { text-align: center; font-size: 12px; color: #555; margin-bottom: 14px; }
+        .linea { border-top: 1px dashed #333; margin: 12px 0; }
+        .info p { margin: 3px 0; font-size: 13px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 6px; }
+        thead th { border-bottom: 1px solid #333; padding: 4px 2px; text-align: left; font-size: 12px; }
+        .total { font-size: 17px; font-weight: bold; text-align: right; margin-top: 14px; }
+        .badge { display: inline-block; font-size: 11px; font-weight: bold; padding: 2px 8px; border-radius: 10px; background: #eee; }
+        .pie { text-align: center; font-size: 11px; color: #777; margin-top: 20px; margin-bottom: 20px; }
+        .resumen-dia { text-align: center; border: 2px solid #333; border-radius: 8px; padding: 12px; margin-bottom: 20px; }
+        .resumen-dia h3 { margin: 0 0 6px; }
+        @media print {
+          body { padding: 10px; }
+        }
+      </style>
+    </head>
+    <body onload="window.print()">
+      <div class="resumen-dia">
+        <h3>📅 Resumen del día ${fecha}</h3>
+        <p style="margin:2px 0;">Total de ventas: ${items.length}</p>
+        <p style="margin:2px 0;font-size:16px;font-weight:bold;">Total del día: $${totalDia.toFixed(2)}</p>
+      </div>
+      ${facturasHTML}
+    </body>
+    </html>
+  `);
+  ventana.document.close();
+}
+
 // ===== HISTORIAL =====
 function mostrar(lista) {
   const ul = document.getElementById("historial");
@@ -486,7 +681,10 @@ function mostrar(lista) {
         <div style="margin-bottom:20px;">
           <div style="display:flex;justify-content:space-between;align-items:center;background:#eee;padding:10px;border-radius:8px;">
             <b>📅 ${fecha}</b>
-            <button onclick="pedirBorrarDia('${fecha}')" style="background:#e74c3c;color:white;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;margin-top:0;">🗑 Borrar día</button>
+            <div style="display:flex;gap:8px;">
+              <button onclick="imprimirDia('${fecha}')" style="background:#27ae60;color:white;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;margin-top:0;">🖨 Imprimir día</button>
+              <button onclick="pedirBorrarDia('${fecha}')" style="background:#e74c3c;color:white;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;margin-top:0;">🗑 Borrar día</button>
+            </div>
           </div>
           <button onclick="verDia('${fecha}')" style="margin:8px 0 4px;background:#3498db;color:white;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;">👁 Ver solo este día</button>
       `;
@@ -515,6 +713,8 @@ function mostrar(lista) {
             💰 $${v.total  || 0} ${badgeTipoPago(v.tipo)}<br>
             🕒 ${horaEC(v.fecha)}<br>
             ${prods}
+            <button onclick="imprimirFactura('${vid}')"
+              style="background:#27ae60;color:white;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;margin-top:8px;">🖨 Imprimir factura</button>
           </div>`;
       });
       ul.innerHTML += `</div>`;

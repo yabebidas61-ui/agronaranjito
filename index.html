@@ -82,17 +82,18 @@
     }
     #ticketPrint {
       display: none; font-family: Arial, sans-serif; width: 72mm;
-      font-size: 12px; color: #000; box-sizing: border-box;
+      font-size: 15px; color: #000; box-sizing: border-box; font-weight: 500;
     }
-    #ticketPrint h2    { text-align: center; margin: 3px 0; font-size: 14px; }
-    #ticketPrint .sub  { text-align: center; font-size: 11px; color: #555; margin: 0 0 3px; }
-    #ticketPrint p     { margin: 2px 0; font-size: 12px; }
-    #ticketPrint hr    { border: none; border-top: 1px dashed #999; margin: 4px 0; }
-    #ticketPrint .fila { display: flex; justify-content: space-between; margin: 2px 0; }
+    #ticketPrint svg { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    #ticketPrint h2    { text-align: center; margin: 4px 0; font-size: 18px; font-weight: 800; }
+    #ticketPrint .sub  { text-align: center; font-size: 14px; color: #000; margin: 0 0 4px; font-weight: 600; }
+    #ticketPrint p     { margin: 3px 0; font-size: 15px; }
+    #ticketPrint hr    { border: none; border-top: 2px dashed #000; margin: 5px 0; }
+    #ticketPrint .fila { display: flex; justify-content: space-between; margin: 3px 0; font-size: 15px; }
     #ticketPrint .nom  { flex: 1; padding-right: 4px; }
     #ticketPrint .pre  { white-space: nowrap; font-weight: bold; }
-    #ticketPrint .tot  { display: flex; justify-content: space-between; font-size: 14px; font-weight: bold; margin: 3px 0; }
-    #ticketPrint .pie  { text-align: center; font-size: 10px; color: #666; margin-top: 6px; }
+    #ticketPrint .tot  { display: flex; justify-content: space-between; font-size: 18px; font-weight: 800; margin: 4px 0; }
+    #ticketPrint .pie  { text-align: center; font-size: 13px; color: #000; margin-top: 8px; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -217,6 +218,22 @@
 <script>
 const API = "https://app-zobz.onrender.com";
 
+/* ══════════════════════════════════════
+   DATOS DEL NEGOCIO (para el ticket / SRI)
+══════════════════════════════════════ */
+const NEGOCIO = {
+  razonSocial:  "AGRO NARANJITO",
+  nombreComercial: "AGRO NARANJITO #1",
+  ruc: "0940166169001",
+  establecimiento: "001",
+  puntoEmision: "001",
+  direccionMatriz: "AV. NARANJITO Y 5 DE OCTUBRE",
+  direccionEstablecimiento: "AV. NARANJITO Y 5 DE OCTUBRE",
+  obligadoContabilidad: "NO",           // "SI" o "NO" — ajusta según tu caso
+  ambiente: "PRODUCCIÓN",               // Informativo, no reemplaza autorización SRI real
+  telefono: ""                          // opcional, agrega si tienes
+};
+
 const bancos = {
   guayaquil: { nombre: "Banco Guayaquil", cuenta: "0046069900" },
   pichincha:  { nombre: "Banco Pichincha", cuenta: "2202438965" }
@@ -229,6 +246,20 @@ let resolveCredito  = null;
 let resolveCantidad = null;
 let _productoActivo = null;
 let esConsumidorFinal = false; // ← estado del toggle
+
+/* Número secuencial simple del comprobante: ESTABLECIMIENTO-PUNTOEMISION-SECUENCIAL
+   Se guarda en localStorage para persistir entre ventas en este mismo navegador.
+   NOTA: esto es solo un número interno de control, NO es una autorización del SRI. */
+function obtenerSiguienteSecuencial() {
+  const clave = "nexus_secuencial_venta";
+  let n = parseInt(localStorage.getItem(clave)) || 0;
+  n += 1;
+  localStorage.setItem(clave, n);
+  return String(n).padStart(9, "0");
+}
+function numeroComprobante(secuencial) {
+  return `${NEGOCIO.establecimiento}-${NEGOCIO.puntoEmision}-${secuencial}`;
+}
 
 document.addEventListener("DOMContentLoaded", () => {
   document.getElementById("cedula").addEventListener("input", () => {
@@ -593,19 +624,50 @@ function cerrarFactura() {
 function construirTicket(datos) {
   const { cliente, cedula, subtotal, pct, descuentoMonto, totalFinal,
           tasaPct, montoInteres, meses, pago, vuelto,
-          bancoNombre, bancoCuenta, comprobante } = datos;
+          bancoNombre, bancoCuenta, comprobante, numComprobante } = datos;
   const fecha = new Date().toLocaleString("es-EC", { dateStyle: "short", timeStyle: "short" });
 
   // Mostrar "CONSUMIDOR FINAL" en ticket en lugar del número largo
   const cedulaMostrar = cedula === "9999999999999" ? "CONSUMIDOR FINAL" : (cedula || "-");
 
   let html = `
-    <h2>AGRO NARANJITO #1</h2>
-    <div class="sub">Factura de venta</div>
+    <div style="text-align:center;margin-bottom:4px">
+      <svg viewBox="0 0 680 260" style="width:100%;max-width:200px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${NEGOCIO.nombreComercial}">
+        <g fill="none" stroke="#000000">
+          <rect x="332" y="35" width="16" height="155" rx="8" fill="#000000" stroke="#000000" stroke-width="2"/>
+          <line x1="332" y1="75" x2="348" y2="75" stroke="#ffffff" stroke-width="2"/>
+          <line x1="332" y1="115" x2="348" y2="115" stroke="#ffffff" stroke-width="2"/>
+          <line x1="332" y1="155" x2="348" y2="155" stroke="#ffffff" stroke-width="2"/>
+          <path d="M340 40 Q 300 20 262 34" stroke-width="9" stroke-linecap="round"/>
+          <path d="M340 40 Q 380 20 418 34" stroke-width="9" stroke-linecap="round"/>
+          <path d="M340 55 Q 315 40 292 50" stroke-width="7" stroke-linecap="round"/>
+        </g>
+        <text x="340" y="105" text-anchor="middle" font-family="Arial, sans-serif" font-weight="800" font-size="66" letter-spacing="3" fill="#000000">AGRO</text>
+        <text x="340" y="168" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="45" letter-spacing="5" fill="#000000">NARANJITO</text>
+        <rect x="140" y="188" width="400" height="14" rx="7" fill="#000000" stroke="#000000" stroke-width="2"/>
+        <line x1="220" y1="188" x2="220" y2="202" stroke="#ffffff" stroke-width="2"/>
+        <line x1="300" y1="188" x2="300" y2="202" stroke="#ffffff" stroke-width="2"/>
+        <line x1="380" y1="188" x2="380" y2="202" stroke="#ffffff" stroke-width="2"/>
+        <line x1="460" y1="188" x2="460" y2="202" stroke="#ffffff" stroke-width="2"/>
+        <g fill="none" stroke="#000000">
+          <path d="M150 190 Q 110 175 100 140" stroke-width="9" stroke-linecap="round"/>
+          <path d="M150 190 Q 120 205 108 225" stroke-width="7" stroke-linecap="round"/>
+          <path d="M530 190 Q 570 175 580 140" stroke-width="9" stroke-linecap="round"/>
+          <path d="M530 190 Q 560 205 572 225" stroke-width="7" stroke-linecap="round"/>
+        </g>
+      </svg>
+    </div>
+    <div class="sub">RUC: ${NEGOCIO.ruc}</div>
+    <div class="sub">${NEGOCIO.direccionEstablecimiento}</div>
+    ${NEGOCIO.telefono ? `<div class="sub">Tel: ${NEGOCIO.telefono}</div>` : ""}
+    <div class="sub">Obligado a llevar contabilidad: ${NEGOCIO.obligadoContabilidad}</div>
+    <hr>
+    <div class="sub"><b>NOTA DE VENTA</b></div>
+    <div class="sub">N°: ${numComprobante}</div>
     <div class="sub">${fecha}</div>
     <hr>
     <p><b>Cliente:</b> ${cliente || "-"}</p>
-    <p><b>Cédula:</b> ${cedulaMostrar}</p>
+    <p><b>Cédula/RUC:</b> ${cedulaMostrar}</p>
     <hr>
   `;
   carrito.forEach(p => {
@@ -625,7 +687,7 @@ function construirTicket(datos) {
     html += `<p>Banco: ${bancoNombre}</p><p>Cuenta: ${bancoCuenta}</p><p>Comprobante: ${comprobante}</p>`;
   }
   html += `<p style="font-size:11px;color:#555;margin-top:4px">Pago: ${tipoPago}</p>`;
-  html += `<div class="pie">¡Gracias por su compra!<br>Vuelva pronto 😊</div>`;
+  html += `<div class="pie">Este documento es un comprobante interno de venta.<br>¡Gracias por su compra! Vuelva pronto 😊</div>`;
   return html;
 }
 
@@ -676,9 +738,12 @@ async function facturar() {
 
   await guardarClienteSiNoExiste();
 
+  const secuencial = obtenerSiguienteSecuencial();
+  const numComprobante = numeroComprobante(secuencial);
+
   const datos = { cliente, cedula, subtotal, pct, descuentoMonto, totalFinal,
                   tasaPct, montoInteres, meses, pago, vuelto,
-                  bancoNombre, bancoCuenta, comprobante };
+                  bancoNombre, bancoCuenta, comprobante, numComprobante };
   const ticketHTML = construirTicket(datos);
 
   document.getElementById("facturaContenido").innerHTML = ticketHTML;
@@ -695,7 +760,8 @@ async function facturar() {
         descuentoPct: pct, descuentoMonto,
         total: totalFinal, tipo: tipoPago,
         meses, tasaInteres: tasaPct, montoInteres, pago, vuelto,
-        banco: bancoNombre, cuenta: bancoCuenta, comprobante
+        banco: bancoNombre, cuenta: bancoCuenta, comprobante,
+        numComprobante
       })
     });
     if (!resVenta.ok) throw new Error("HTTP " + resVenta.status);

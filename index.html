@@ -82,18 +82,18 @@
     }
     #ticketPrint {
       display: none; font-family: Arial, sans-serif; width: 72mm;
-      font-size: 15px; color: #000; box-sizing: border-box; font-weight: 500;
+      font-size: 11px; color: #000; box-sizing: border-box; font-weight: 500;
     }
     #ticketPrint svg { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-    #ticketPrint h2    { text-align: center; margin: 4px 0; font-size: 18px; font-weight: 800; }
-    #ticketPrint .sub  { text-align: center; font-size: 14px; color: #000; margin: 0 0 4px; font-weight: 600; }
-    #ticketPrint p     { margin: 3px 0; font-size: 15px; }
-    #ticketPrint hr    { border: none; border-top: 2px dashed #000; margin: 5px 0; }
-    #ticketPrint .fila { display: flex; justify-content: space-between; margin: 3px 0; font-size: 15px; }
+    #ticketPrint h2    { text-align: center; margin: 2px 0; font-size: 13px; font-weight: 800; }
+    #ticketPrint .sub  { text-align: center; font-size: 10px; color: #000; margin: 0 0 2px; font-weight: 600; }
+    #ticketPrint p     { margin: 1px 0; font-size: 11px; }
+    #ticketPrint hr    { border: none; border-top: 1px dashed #000; margin: 3px 0; }
+    #ticketPrint .fila { display: flex; justify-content: space-between; margin: 1px 0; font-size: 11px; }
     #ticketPrint .nom  { flex: 1; padding-right: 4px; }
     #ticketPrint .pre  { white-space: nowrap; font-weight: bold; }
-    #ticketPrint .tot  { display: flex; justify-content: space-between; font-size: 18px; font-weight: 800; margin: 4px 0; }
-    #ticketPrint .pie  { text-align: center; font-size: 13px; color: #000; margin-top: 8px; font-weight: 600; }
+    #ticketPrint .tot  { display: flex; justify-content: space-between; font-size: 13px; font-weight: 800; margin: 2px 0; }
+    #ticketPrint .pie  { text-align: center; font-size: 9px; color: #000; margin-top: 4px; font-weight: 600; }
   </style>
 </head>
 <body>
@@ -247,6 +247,16 @@ let resolveCantidad = null;
 let _productoActivo = null;
 let esConsumidorFinal = false; // ← estado del toggle
 
+/* ══════════════════════════════════════
+   NOMBRE PARA MOSTRAR (oculta la compañía entre paréntesis)
+   Ej: "Fertilizante NPK (Yara)" → "Fertilizante NPK"
+   El nombre completo con la compañía se sigue guardando en Bodega,
+   esto solo afecta lo que se muestra/imprime en Ventas.
+══════════════════════════════════════ */
+function nombreVenta(nombre) {
+  return (nombre || "").replace(/\s*\([^)]*\)\s*$/, "").trim();
+}
+
 /* Número secuencial simple del comprobante: ESTABLECIMIENTO-PUNTOEMISION-SECUENCIAL
    Se guarda en localStorage para persistir entre ventas en este mismo navegador.
    NOTA: esto es solo un número interno de control, NO es una autorización del SRI. */
@@ -330,6 +340,27 @@ function imprimirYAbrirCaja() {
   window.print();
 }
 function abrirCajon() { console.log("Cajón abierto"); }
+
+/* Imprime automáticamente sin necesidad de tocar el botón "Imprimir".
+   Espera a que el QR (imagen externa) cargue antes de imprimir, para que
+   no salga en blanco. Si tarda demasiado, imprime igual tras 1.5s. */
+function imprimirAutomatico() {
+  const qrImg = document.querySelector("#ticketPrint img");
+  const yaImprimir = () => imprimirYAbrirCaja();
+
+  if (!qrImg) { yaImprimir(); return; }
+
+  let impreso = false;
+  const disparar = () => { if (!impreso) { impreso = true; yaImprimir(); } };
+
+  if (qrImg.complete) {
+    disparar();
+  } else {
+    qrImg.addEventListener("load", disparar, { once: true });
+    qrImg.addEventListener("error", disparar, { once: true });
+    setTimeout(disparar, 1500); // respaldo por si la imagen no carga
+  }
+}
 
 /* TIPO DE PAGO */
 function setTipo(tipo) {
@@ -439,7 +470,7 @@ async function guardarClienteSiNoExiste() {
 function mostrar(lista) {
   document.getElementById("lista").innerHTML = lista.map(p => `
     <li>
-      <span>${p.nombre} <small style="color:#888">$${Number(p.precioVenta).toFixed(2)} · Stock: ${p.stock}</small></span>
+      <span>${nombreVenta(p.nombre)} <small style="color:#888">$${Number(p.precioVenta).toFixed(2)} · Stock: ${p.stock}</small></span>
       <button onclick="agregar('${p._id}')">+ Agregar</button>
     </li>
   `).join("");
@@ -471,7 +502,7 @@ function pedirCantidad(producto) {
     const enCarrito = yaEnCarrito ? yaEnCarrito.cantidad : 0;
     const disponible = producto.stock - enCarrito;
 
-    document.getElementById("cantModalNombre").textContent = producto.nombre;
+    document.getElementById("cantModalNombre").textContent = nombreVenta(producto.nombre);
     document.getElementById("cantModalStock").textContent  =
       `Stock disponible: ${producto.stock}${enCarrito > 0 ? ` (${enCarrito} ya en carrito)` : ""}`;
     document.getElementById("cantInput").value = "";
@@ -545,7 +576,7 @@ async function agregar(id) {
 
   const existe = carrito.find(x => x.id === id);
   if (existe) { existe.cantidad += cant; }
-  else { carrito.push({ id, nombre: p.nombre, precio: Number(p.precioVenta), cantidad: cant }); }
+  else { carrito.push({ id, nombre: nombreVenta(p.nombre), precio: Number(p.precioVenta), cantidad: cant }); }
   actualizar();
 }
 
@@ -632,7 +663,7 @@ function construirTicket(datos) {
 
   let html = `
     <div style="text-align:center;margin-bottom:4px">
-      <svg viewBox="0 0 680 260" style="width:100%;max-width:200px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${NEGOCIO.nombreComercial}">
+      <svg viewBox="0 0 680 260" style="width:100%;max-width:140px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${NEGOCIO.nombreComercial}">
         <g fill="none" stroke="#000000">
           <rect x="332" y="35" width="16" height="155" rx="8" fill="#000000" stroke="#000000" stroke-width="2"/>
           <line x1="332" y1="75" x2="348" y2="75" stroke="#ffffff" stroke-width="2"/>
@@ -687,7 +718,19 @@ function construirTicket(datos) {
     html += `<p>Banco: ${bancoNombre}</p><p>Cuenta: ${bancoCuenta}</p><p>Comprobante: ${comprobante}</p>`;
   }
   html += `<p style="font-size:11px;color:#555;margin-top:4px">Pago: ${tipoPago}</p>`;
-  html += `<div class="pie">Este documento es un comprobante interno de venta.<br>¡Gracias por su compra! Vuelva pronto 😊</div>`;
+
+  // ===== QR de la tienda (dimensionado para caber en el ticket de 72mm) =====
+  const qrUrl = "https://yabebidas61-ui.github.io/analisis-agro/";
+  const qrImgSrc = `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(qrUrl)}`;
+  html += `
+    <hr>
+    <div style="text-align:center;margin-top:6px">
+      <p style="margin:0 0 3px;font-weight:800;font-size:12px;letter-spacing:1px">TIENDA</p>
+      <img src="${qrImgSrc}" style="width:75px;height:75px;max-width:100%" alt="QR tienda">
+    </div>
+  `;
+
+  html += `<div class="pie">Este documento es un comprobante interno de venta.<br>¡Gracias por su compra! Vuelva pronto ☺ </div>`;
   return html;
 }
 
@@ -778,6 +821,10 @@ async function facturar() {
       mostrarAlerta(`⚠️ Venta guardada, pero ${fallos.length} producto(s) no actualizaron stock.`);
     }
 
+    // Impresión automática: no hace falta tocar el botón "Imprimir".
+    // Si Chrome/Edge está en modo kiosk-printing, sale directo sin diálogo.
+    imprimirAutomatico();
+
     limpiarFormulario();
     await cargar();
 
@@ -789,9 +836,7 @@ async function facturar() {
     btnConfirmar.disabled = false;
     btnConfirmar.innerHTML = "Confirmar venta";
   }
-}
-
-function limpiarFormulario() {
+}function limpiarFormulario() {
   carrito = [];
   actualizar();
   ["cliente","cedula","celular","correo","montoRecibido","descuento","comprobante"].forEach(id => {

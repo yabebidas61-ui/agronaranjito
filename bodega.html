@@ -19,6 +19,7 @@
 
     .badge-percha { background: #dff1fb; color: #1a6a9a; padding: 2px 9px; border-radius: 6px; font-size: 12px; font-weight: 600; }
     .badge-sin-percha { background: #eee; color: #888; padding: 2px 9px; border-radius: 6px; font-size: 12px; font-weight: 600; }
+    .badge-compania { background: #eee6fb; color: #6c3fbf; padding: 2px 9px; border-radius: 6px; font-size: 12px; font-weight: 600; display:inline-block; margin-top:4px; }
 
     /* ===== MODAL STOCK ===== */
     .modal-overlay {
@@ -102,6 +103,16 @@
 
     /* ===== MODAL PASSWORD ===== */
     .pass-error { color: #e74c3c; font-size: 13px; margin-top: 4px; display: none; }
+
+    /* ===== ORDEN ===== */
+    .orden-btn {
+      background: #6c3fbf;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .orden-btn:hover { background: #5a32a3; }
   </style>
 </head>
 <body>
@@ -123,7 +134,7 @@
     <div class="card">
       <h3>➕ Agregar Producto</h3>
       <input id="codigo" placeholder="Código de barras">
-      <input id="nombre" placeholder="Nombre producto">
+      <input id="nombre" placeholder="Nombre producto (ej: Fertilizante NPK (Yara))">
       <input id="precioCompra" type="number" placeholder="Precio compra">
       <input id="precioVenta" type="number" placeholder="Precio venta">
       <input id="stock" type="number" placeholder="Stock">
@@ -134,9 +145,10 @@
 
     <div class="card">
       <h3>📋 Inventario</h3>
-      <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px; flex-wrap: wrap;">
         <span style="font-size:18px;">🔍</span>
-        <input id="buscar" placeholder="Buscar producto o percha..." onkeyup="filtrar()" style="flex:1; padding:10px; border-radius:8px; border:1px solid #ccc;">
+        <input id="buscar" placeholder="Buscar producto, compañía o percha..." onkeyup="filtrar()" style="flex:1; min-width:200px; padding:10px; border-radius:8px; border:1px solid #ccc;">
+        <button class="orden-btn" onclick="toggleOrdenCompania()" id="btnOrdenCompania">🏢 Ordenar por Compañía</button>
       </div>
       <table>
         <thead>
@@ -235,9 +247,49 @@ let stockActualValor = 0;
 let tipoStockActual = "agregar";
 let eliminarIdActual = null;
 
+// ordenCompania: null (sin orden), 'asc', 'desc'
+let ordenCompania = null;
+
 // ================= CERRAR MODAL =================
 function cerrarModal(id) {
   document.getElementById(id).classList.remove("activo");
+}
+
+// ================= COMPAÑÍA (texto entre paréntesis en el nombre) =================
+function obtenerCompania(p) {
+  const match = (p.nombre || "").match(/\(([^)]+)\)/);
+  return match ? match[1].trim() : "";
+}
+
+function aplicarOrden(lista) {
+  if (!ordenCompania) return lista;
+  const copia = [...lista];
+  copia.sort((a, b) => {
+    const ca = obtenerCompania(a).toLowerCase();
+    const cb = obtenerCompania(b).toLowerCase();
+    // Productos sin compañía van al final
+    if (ca === "" && cb === "") return 0;
+    if (ca === "") return 1;
+    if (cb === "") return -1;
+    if (ca < cb) return ordenCompania === "asc" ? -1 : 1;
+    if (ca > cb) return ordenCompania === "asc" ? 1 : -1;
+    return 0;
+  });
+  return copia;
+}
+
+function toggleOrdenCompania() {
+  // Ciclo: sin orden -> ascendente -> descendente -> sin orden
+  if (ordenCompania === null) ordenCompania = "asc";
+  else if (ordenCompania === "asc") ordenCompania = "desc";
+  else ordenCompania = null;
+
+  const btn = document.getElementById("btnOrdenCompania");
+  if (ordenCompania === "asc") btn.textContent = "🏢 Compañía ▲ (A-Z)";
+  else if (ordenCompania === "desc") btn.textContent = "🏢 Compañía ▼ (Z-A)";
+  else btn.textContent = "🏢 Ordenar por Compañía";
+
+  filtrar();
 }
 
 // ================= FILTRAR =================
@@ -246,9 +298,10 @@ function filtrar() {
   const filtrados = productos.filter(p =>
     (p.nombre || "").toLowerCase().includes(t) ||
     (p.codigo || "").toLowerCase().includes(t) ||
-    (p.percha || "").toLowerCase().includes(t)
+    (p.percha || "").toLowerCase().includes(t) ||
+    obtenerCompania(p).toLowerCase().includes(t)
   );
-  renderTabla(filtrados);
+  renderTabla(aplicarOrden(filtrados));
 }
 
 // ================= CARGAR =================
@@ -257,7 +310,7 @@ async function cargar() {
     const res = await fetch(API + '/productos');
     if (!res.ok) throw new Error();
     productos = await res.json();
-    renderTabla(productos);
+    renderTabla(aplicarOrden(productos));
   } catch (e) {
     alert("❌ No conecta con el servidor");
   }
@@ -294,10 +347,15 @@ function renderTabla(lista) {
       ? `<span class="badge-percha">📍 ${p.percha}</span>`
       : `<span class="badge-sin-percha">Sin asignar</span>`;
 
+    let compania = obtenerCompania(p);
+    let companiaBadge = compania
+      ? `<span class="badge-compania">🏢 ${compania}</span>`
+      : "";
+
     html += `
       <tr>
         <td>${p.codigo || '-'}</td>
-        <td>${p.nombre}</td>
+        <td>${p.nombre}${companiaBadge ? `<br>${companiaBadge}` : ''}</td>
         <td>$${p.precioCompra}</td>
         <td>$${p.precioVenta}</td>
         <td>${p.stock} ${stockBadge}</td>

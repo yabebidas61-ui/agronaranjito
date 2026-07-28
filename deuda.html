@@ -159,6 +159,19 @@
   </div>
 </div>
 
+<!-- MODAL CONTRASEÑA -->
+<div class="modal-overlay" id="modalClave">
+  <div class="modal" style="width:340px;">
+    <h3>🔒 Contraseña requerida</h3>
+    <label>Ingresa la contraseña para eliminar</label>
+    <input type="password" id="clave-input" placeholder="Contraseña" onkeydown="if(event.key==='Enter') confirmarClave()">
+    <div class="modal-btns">
+      <button class="btn-cancelar" onclick="cerrarModal('modalClave')">Cancelar</button>
+      <button class="btn-confirmar" onclick="confirmarClave()">🗑 Eliminar</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const API = "https://app-zobz.onrender.com";
 
@@ -521,11 +534,11 @@ function abrirRecibo(d, monto, tipoPago, banco, comprobante, remitente) {
 
   let productos = (d.productos && d.productos.length)
     ? d.productos.map(p => `
-        <div style="display:flex;justify-content:space-between;padding:3px 0;font-size:14px;">
+        <div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11px;">
           <span>${p.nombre} x${p.cantidad}</span>
           <b>$${(p.precio * p.cantidad).toFixed(2)}</b>
         </div>`).join("")
-    : `<div style="font-size:13px;color:#000;">Sin productos</div>`;
+    : `<div style="font-size:10px;color:#000;">Sin productos</div>`;
 
   let filasHistorial = "";
   let totalAcumulado = 0;
@@ -536,26 +549,26 @@ function abrirRecibo(d, monto, tipoPago, banco, comprobante, remitente) {
       const fecha = new Date(p.fecha).toLocaleDateString("es-EC");
       const metodo = p.tipoPago === "transferencia" ? "Transf." : "Efectivo";
       filasHistorial += `
-        <div style="display:grid;grid-template-columns:1fr 65px 65px;font-size:13px;padding:5px 0;border-bottom:1px dashed #000;${esUltimo ? 'font-weight:700;' : ''}">
+        <div style="display:grid;grid-template-columns:1fr 65px 65px;font-size:10px;padding:5px 0;border-bottom:1px dashed #000;${esUltimo ? 'font-weight:700;' : ''}">
           <span>${fecha}</span>
           <span style="text-align:right;">$${p.monto.toFixed(2)}</span>
           <span style="text-align:right;">${metodo}</span>
         </div>`;
     });
   } else {
-    filasHistorial = `<div style="font-size:13px;color:#000;padding:5px 0;">Sin pagos</div>`;
+    filasHistorial = `<div style="font-size:10px;color:#000;padding:5px 0;">Sin pagos</div>`;
   }
 
   let infoPago = tipoPago === "transferencia" ? `
-    <div style="font-size:13px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed #000;">
-      <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:4px;">Método de pago</div>
+    <div style="font-size:10px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed #000;">
+      <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:4px;">Método de pago</div>
       <b>Transferencia</b><br>
       Banco: ${banco}<br>
       Remitente: ${remitente || "-"}<br>
       Comprobante: ${comprobante}
     </div>` : `
-    <div style="font-size:13px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed #000;">
-      <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:4px;">Método de pago</div>
+    <div style="font-size:10px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed #000;">
+      <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:4px;">Método de pago</div>
       <b>Efectivo</b>
     </div>`;
 
@@ -568,7 +581,7 @@ function abrirRecibo(d, monto, tipoPago, banco, comprobante, remitente) {
 <html><head><meta charset="UTF-8"><title>Recibo</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: 'Courier New', Courier, monospace; background:#fff; display:flex; justify-content:center; padding:12px; color:#000; }
+  body { font-family: 'Courier New', Courier, monospace; background:#fff; display:flex; justify-content:center; padding:12px; color:#000; font-weight:600; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   .recibo { width:300px; }
   @media print { body { padding:0; } .recibo { width:100%; } }
 </style>
@@ -577,37 +590,37 @@ function abrirRecibo(d, monto, tipoPago, banco, comprobante, remitente) {
 <div class="recibo">
 
   <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:10px;margin-bottom:10px;">
-    <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">Comprobante de Abono</div>
-    <div style="font-size:20px;font-weight:700;letter-spacing:1px;">AGRO NARANJITO</div>
-    <div style="font-size:11px;color:#000;margin-top:4px;">${fecha}</div>
+    <div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">Comprobante de Abono</div>
+    <div style="font-size:15px;font-weight:700;letter-spacing:1px;">AGRO NARANJITO</div>
+    <div style="font-size:9px;color:#000;margin-top:4px;">${fecha}</div>
   </div>
 
   <div style="margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px;">
-    <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:4px;">Cliente</div>
-    <div style="font-size:16px;font-weight:700;">${d.cliente || "-"}</div>
-    <div style="font-size:13px;margin-top:3px;">CI: ${d.cedula || "-"}</div>
-    <div style="font-size:13px;">Tel: ${d.celular || "-"}</div>
+    <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:4px;">Cliente</div>
+    <div style="font-size:13px;font-weight:700;">${d.cliente || "-"}</div>
+    <div style="font-size:10px;margin-top:3px;">CI: ${d.cedula || "-"}</div>
+    <div style="font-size:10px;">Tel: ${d.celular || "-"}</div>
   </div>
 
   <div style="margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px;">
-    <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:6px;">Productos</div>
+    <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:6px;">Productos</div>
     ${productos}
   </div>
 
   <div style="margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px;">
-    <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:6px;">Historial de pagos</div>
-    <div style="display:grid;grid-template-columns:1fr 65px 65px;font-size:10px;font-weight:700;text-transform:uppercase;color:#000;padding:4px 0;border-bottom:1px solid #000;">
+    <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:6px;">Historial de pagos</div>
+    <div style="display:grid;grid-template-columns:1fr 65px 65px;font-size:8px;font-weight:700;text-transform:uppercase;color:#000;padding:4px 0;border-bottom:1px solid #000;">
       <span>Fecha</span><span style="text-align:right;">Monto</span><span style="text-align:right;">Método</span>
     </div>
     ${filasHistorial}
-    <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-top:1px solid #000;margin-top:2px;">
+    <div style="display:flex;justify-content:space-between;font-size:10px;padding:5px 0;border-top:1px solid #000;margin-top:2px;">
       <span style="color:#000;">Total abonado</span><b>$${totalAcumulado.toFixed(2)}</b>
     </div>
   </div>
 
   ${infoPago}
 
-  <div style="margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px;font-size:14px;">
+  <div style="margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px;font-size:11px;">
     <div style="display:flex;justify-content:space-between;padding:3px 0;">
       <span>Total deuda</span><span>$${total.toFixed(2)}</span>
     </div>
@@ -620,11 +633,11 @@ function abrirRecibo(d, monto, tipoPago, banco, comprobante, remitente) {
   </div>
 
   <div style="border:2px solid #000;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-    <span style="font-size:15px;font-weight:700;">ESTE ABONO</span>
-    <span style="font-size:24px;font-weight:700;">$${monto.toFixed(2)}</span>
+    <span style="font-size:12px;font-weight:700;">ESTE ABONO</span>
+    <span style="font-size:18px;font-weight:700;">$${monto.toFixed(2)}</span>
   </div>
 
-  <div style="text-align:center;font-size:12px;color:#000;">
+  <div style="text-align:center;font-size:9px;color:#000;">
     Gracias por su pago<br>Agro Naranjito
   </div>
 
@@ -641,11 +654,11 @@ function abrirReciboGeneral(d) {
 
   let productos = (d.productos && d.productos.length)
     ? d.productos.map(p => `
-        <div style="display:flex;justify-content:space-between;padding:3px 0;font-size:14px;">
+        <div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11px;">
           <span>${p.nombre} x${p.cantidad}</span>
           <b>$${(p.precio * p.cantidad).toFixed(2)}</b>
         </div>`).join("")
-    : `<div style="font-size:13px;color:#000;">Sin productos</div>`;
+    : `<div style="font-size:10px;color:#000;">Sin productos</div>`;
 
   let filasHistorial = "";
   let totalAcumulado = 0;
@@ -658,14 +671,14 @@ function abrirReciboGeneral(d) {
       const fecha = new Date(p.fecha).toLocaleDateString("es-EC");
       const metodo = p.tipoPago === "transferencia" ? "Transf." : "Efectivo";
       filasHistorial += `
-        <div style="display:grid;grid-template-columns:1fr 65px 65px;font-size:13px;padding:5px 0;border-bottom:1px dashed #000;${esUltimo ? 'font-weight:700;' : ''}">
+        <div style="display:grid;grid-template-columns:1fr 65px 65px;font-size:10px;padding:5px 0;border-bottom:1px dashed #000;${esUltimo ? 'font-weight:700;' : ''}">
           <span>${fecha}</span>
           <span style="text-align:right;">$${p.monto.toFixed(2)}</span>
           <span style="text-align:right;">${metodo}</span>
         </div>`;
     });
   } else {
-    filasHistorial = `<div style="font-size:13px;color:#000;padding:5px 0;">Sin pagos</div>`;
+    filasHistorial = `<div style="font-size:10px;color:#000;padding:5px 0;">Sin pagos</div>`;
   }
 
   const pagado   = d.pagado || 0;
@@ -677,7 +690,7 @@ function abrirReciboGeneral(d) {
 <html><head><meta charset="UTF-8"><title>Recibo</title>
 <style>
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: 'Courier New', Courier, monospace; background:#fff; display:flex; justify-content:center; padding:12px; color:#000; }
+  body { font-family: 'Courier New', Courier, monospace; background:#fff; display:flex; justify-content:center; padding:12px; color:#000; font-weight:600; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
   .recibo { width:300px; }
   @media print { body { padding:0; } .recibo { width:100%; } }
 </style>
@@ -686,35 +699,35 @@ function abrirReciboGeneral(d) {
 <div class="recibo">
 
   <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:10px;margin-bottom:10px;">
-    <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">Estado de Cuenta</div>
-    <div style="font-size:20px;font-weight:700;letter-spacing:1px;">AGRO NARANJITO</div>
-    <div style="font-size:11px;color:#000;margin-top:4px;">${fecha}</div>
+    <div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">Estado de Cuenta</div>
+    <div style="font-size:15px;font-weight:700;letter-spacing:1px;">AGRO NARANJITO</div>
+    <div style="font-size:9px;color:#000;margin-top:4px;">${fecha}</div>
   </div>
 
   <div style="margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px;">
-    <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:4px;">Cliente</div>
-    <div style="font-size:16px;font-weight:700;">${d.cliente || "-"}</div>
-    <div style="font-size:13px;margin-top:3px;">CI: ${d.cedula || "-"}</div>
-    <div style="font-size:13px;">Tel: ${d.celular || "-"}</div>
+    <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:4px;">Cliente</div>
+    <div style="font-size:13px;font-weight:700;">${d.cliente || "-"}</div>
+    <div style="font-size:10px;margin-top:3px;">CI: ${d.cedula || "-"}</div>
+    <div style="font-size:10px;">Tel: ${d.celular || "-"}</div>
   </div>
 
   <div style="margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px;">
-    <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:6px;">Productos</div>
+    <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:6px;">Productos</div>
     ${productos}
   </div>
 
   <div style="margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px;">
-    <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:6px;">Historial de pagos</div>
-    <div style="display:grid;grid-template-columns:1fr 65px 65px;font-size:10px;font-weight:700;text-transform:uppercase;color:#000;padding:4px 0;border-bottom:1px solid #000;">
+    <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:6px;">Historial de pagos</div>
+    <div style="display:grid;grid-template-columns:1fr 65px 65px;font-size:8px;font-weight:700;text-transform:uppercase;color:#000;padding:4px 0;border-bottom:1px solid #000;">
       <span>Fecha</span><span style="text-align:right;">Monto</span><span style="text-align:right;">Método</span>
     </div>
     ${filasHistorial}
-    <div style="display:flex;justify-content:space-between;font-size:13px;padding:5px 0;border-top:1px solid #000;margin-top:2px;">
+    <div style="display:flex;justify-content:space-between;font-size:10px;padding:5px 0;border-top:1px solid #000;margin-top:2px;">
       <span style="color:#000;">Total abonado</span><b>$${totalAcumulado.toFixed(2)}</b>
     </div>
   </div>
 
-  <div style="margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px;font-size:14px;">
+  <div style="margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px;font-size:11px;">
     <div style="display:flex;justify-content:space-between;padding:3px 0;">
       <span>Total deuda</span><span>$${total.toFixed(2)}</span>
     </div>
@@ -727,11 +740,11 @@ function abrirReciboGeneral(d) {
   </div>
 
   <div style="border:2px solid #000;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-    <span style="font-size:15px;font-weight:700;">SALDO ACTUAL</span>
-    <span style="font-size:24px;font-weight:700;">$${restante.toFixed(2)}</span>
+    <span style="font-size:12px;font-weight:700;">SALDO ACTUAL</span>
+    <span style="font-size:18px;font-weight:700;">$${restante.toFixed(2)}</span>
   </div>
 
-  <div style="text-align:center;font-size:12px;color:#000;">
+  <div style="text-align:center;font-size:9px;color:#000;">
     Gracias por su preferencia<br>Agro Naranjito
   </div>
 
@@ -752,17 +765,25 @@ function limpiar() {
 }
 
 // ================= ELIMINAR =================
-async function eliminar(id) {
-  if (!confirm("¿Seguro que quieres eliminar esta deuda?")) return;
+let deudaIdAEliminar = null;
 
-  let clave = prompt("Ingresa la contraseña para eliminar:");
-  if (clave === null) return; // canceló
+function eliminar(id) {
+  deudaIdAEliminar = id;
+  document.getElementById("clave-input").value = "";
+  document.getElementById("modalClave").classList.add("activo");
+  setTimeout(() => document.getElementById("clave-input").focus(), 100);
+}
+
+async function confirmarClave() {
+  let clave = document.getElementById("clave-input").value;
   if (clave !== "agro123") { alert("❌ Contraseña incorrecta"); return; }
 
+  cerrarModal("modalClave");
   try {
-    await fetch(API + '/deudas/' + id, { method: "DELETE" });
+    await fetch(API + '/deudas/' + deudaIdAEliminar, { method: "DELETE" });
     cargar();
   } catch (err) { console.log(err); alert("Error al eliminar deuda"); }
+  deudaIdAEliminar = null;
 }
 
 window.onload = cargar;

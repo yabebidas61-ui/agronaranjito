@@ -64,7 +64,8 @@
       <input id="apellido" placeholder="Apellido"><br>
       <input id="cedula" placeholder="Cédula">
       <input id="celular" placeholder="Celular">
-      <input id="direccion" placeholder="Producto"><br>
+      <input id="correo" placeholder="Correo (opcional, solo para recordatorios)" type="email"><br>
+      <input id="direccion" placeholder="Producto">
       <input id="monto" placeholder="Monto">
       <input id="meses" placeholder="Meses"><br>
       <button onclick="agregar()">Guardar</button>
@@ -138,6 +139,8 @@
     <input type="text" id="edit-cedula" placeholder="Cédula">
     <label>Celular</label>
     <input type="text" id="edit-celular" placeholder="Celular">
+    <label>Correo (opcional, solo para recordatorios)</label>
+    <input type="email" id="edit-correo" placeholder="correo@ejemplo.com">
     <label>Monto total</label>
     <input type="number" id="edit-total" placeholder="0.00">
     <div class="modal-btns">
@@ -242,6 +245,7 @@ async function agregar() {
   let apellidoV     = document.getElementById("apellido").value.trim();
   let cedulaV       = document.getElementById("cedula").value.trim();
   let celularV      = document.getElementById("celular").value.trim();
+  let correoV       = document.getElementById("correo").value.trim();
   let totalV        = parseFloat(document.getElementById("monto").value);
   let productosTexto = document.getElementById("direccion").value.trim();
 
@@ -279,6 +283,7 @@ async function agregar() {
           cliente:   deudaExistente.cliente,
           cedula:    deudaExistente.cedula,
           celular:   deudaExistente.celular,
+          correo:    correoV || deudaExistente.correo || "",
           total:     nuevoTotal,
           productos: productosActualizados
         })
@@ -296,6 +301,7 @@ async function agregar() {
           cliente:   clienteFinal,
           cedula:    cedulaV || "-",
           celular:   celularV || "",
+          correo:    correoV || "",
           direccion: "",
           total:     totalV,
           productos: [nuevoProducto],
@@ -313,6 +319,7 @@ async function agregar() {
         cliente:   clienteFinal,
         cedula:    cedulaV || "-",
         celular:   celularV || "",
+        correo:    correoV || "",
         direccion: "",
         total:     totalV,
         productos: [nuevoProducto],
@@ -335,6 +342,7 @@ function editar(id) {
   document.getElementById("edit-cliente").value = d.cliente || "";
   document.getElementById("edit-cedula").value  = d.cedula  || "";
   document.getElementById("edit-celular").value = d.celular || "";
+  document.getElementById("edit-correo").value  = d.correo  || "";
   document.getElementById("edit-total").value   = d.total   || "";
   document.getElementById("modalEditar").classList.add("activo");
 }
@@ -344,6 +352,7 @@ async function confirmarEditar() {
   const cliente = document.getElementById("edit-cliente").value.trim();
   const cedula  = document.getElementById("edit-cedula").value.trim();
   const celular = document.getElementById("edit-celular").value.trim();
+  const correo  = document.getElementById("edit-correo").value.trim();
   const total   = Number(document.getElementById("edit-total").value);
   if (!cliente) return alert("Ingresa el nombre del cliente");
   if (isNaN(total)) return alert("Monto inválido");
@@ -351,7 +360,7 @@ async function confirmarEditar() {
     const res = await fetch(API + '/deudas/' + id, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cliente, cedula, celular, total })
+      body: JSON.stringify({ cliente, cedula, celular, correo, total })
     });
     const texto = await res.text();
     let data;
@@ -382,8 +391,21 @@ function mostrar(lista) {
           return `$${p.monto} — ${new Date(p.fecha).toLocaleString()} — ${metodo}`;
         }).join("<br>")
       : "Sin pagos";
+
+    // --- Recordatorio por WhatsApp ---
     let mensaje   = encodeURIComponent(`Hola ${d.cliente}, le saluda Agro Naranjito.\n\nLe recordamos que mantiene una deuda pendiente de $${restante.toFixed(2)}.\n\nGracias por su atención.`);
     let numero    = (d.celular || "").replace(/^0/, "593");
+    let whatsappBtn = d.celular
+      ? `<a href="https://wa.me/${numero}?text=${mensaje}" target="_blank" style="text-decoration:none;" title="Enviar recordatorio por WhatsApp">📱</a>`
+      : "";
+
+    // --- Recordatorio por Gmail (correo NO se muestra en la tabla, solo se usa aquí) ---
+    let asuntoCorreo = encodeURIComponent(`Recordatorio de deuda pendiente - Agro Naranjito`);
+    let cuerpoCorreo = encodeURIComponent(`Hola ${d.cliente},\n\nLe saluda Agro Naranjito.\n\nLe recordamos que mantiene una deuda pendiente de $${restante.toFixed(2)}.\n\nGracias por su atención.`);
+    let gmailBtn = d.correo
+      ? `<a href="https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(d.correo)}&su=${asuntoCorreo}&body=${cuerpoCorreo}" target="_blank" style="text-decoration:none;" title="Enviar recordatorio por Gmail">📧</a>`
+      : "";
+
     let badgeProds = cantProds > 1 ? `<br><span class="badge-acum">📦 ${cantProds} productos</span>` : "";
     html += `
       <tr>
@@ -391,7 +413,8 @@ function mostrar(lista) {
         <td>${d.cedula || "-"}</td>
         <td>
           ${d.celular || "-"}
-          <a href="https://wa.me/${numero}?text=${mensaje}" target="_blank" style="text-decoration:none;">📱</a>
+          ${whatsappBtn}
+          ${gmailBtn}
         </td>
         <td>$${d.total.toFixed(2)}</td>
         <td>$${pagado.toFixed(2)}</td>
@@ -580,10 +603,28 @@ function abrirRecibo(d, monto, tipoPago, banco, comprobante, remitente) {
   win.document.write(`<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Recibo</title>
 <style>
+  @page { size: 80mm auto; margin: 0; }
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: 'Courier New', Courier, monospace; background:#fff; display:flex; justify-content:center; padding:12px; color:#000; font-weight:600; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-  .recibo { width:300px; }
-  @media print { body { padding:0; } .recibo { width:100%; } }
+  html, body {
+    width: 80mm;
+    font-family: 'Courier New', Courier, monospace;
+    background:#fff;
+    color:#000;
+    font-weight: 700;
+    -webkit-font-smoothing: none;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  body { display:flex; justify-content:center; padding: 3mm 0; }
+  /* Truco para que la térmica marque más negro: se duplica el trazo del texto */
+  .recibo, .recibo * {
+    text-shadow: 0.3px 0 0 currentColor, -0.3px 0 0 currentColor, 0 0.3px 0 currentColor, 0 -0.3px 0 currentColor;
+  }
+  .recibo { width: 72mm; }
+  @media print {
+    body { padding: 0; }
+    .recibo { width: 72mm; }
+  }
 </style>
 </head>
 <body onload="window.print()">
@@ -591,7 +632,7 @@ function abrirRecibo(d, monto, tipoPago, banco, comprobante, remitente) {
 
   <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:10px;margin-bottom:10px;">
     <div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">Comprobante de Abono</div>
-    <div style="font-size:15px;font-weight:700;letter-spacing:1px;">AGRO NARANJITO</div>
+    <div style="font-size:16px;font-weight:900;letter-spacing:1px;">AGRO NARANJITO</div>
     <div style="font-size:9px;color:#000;margin-top:4px;">${fecha}</div>
   </div>
 
@@ -633,8 +674,8 @@ function abrirRecibo(d, monto, tipoPago, banco, comprobante, remitente) {
   </div>
 
   <div style="border:2px solid #000;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-    <span style="font-size:12px;font-weight:700;">ESTE ABONO</span>
-    <span style="font-size:18px;font-weight:700;">$${monto.toFixed(2)}</span>
+    <span style="font-size:12px;font-weight:900;">ESTE ABONO</span>
+    <span style="font-size:19px;font-weight:900;">$${monto.toFixed(2)}</span>
   </div>
 
   <div style="text-align:center;font-size:9px;color:#000;">
@@ -689,10 +730,28 @@ function abrirReciboGeneral(d) {
   win.document.write(`<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Recibo</title>
 <style>
+  @page { size: 80mm auto; margin: 0; }
   * { margin:0; padding:0; box-sizing:border-box; }
-  body { font-family: 'Courier New', Courier, monospace; background:#fff; display:flex; justify-content:center; padding:12px; color:#000; font-weight:600; -webkit-print-color-adjust:exact; print-color-adjust:exact; }
-  .recibo { width:300px; }
-  @media print { body { padding:0; } .recibo { width:100%; } }
+  html, body {
+    width: 80mm;
+    font-family: 'Courier New', Courier, monospace;
+    background:#fff;
+    color:#000;
+    font-weight: 700;
+    -webkit-font-smoothing: none;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  body { display:flex; justify-content:center; padding: 3mm 0; }
+  /* Truco para que la térmica marque más negro: se duplica el trazo del texto */
+  .recibo, .recibo * {
+    text-shadow: 0.3px 0 0 currentColor, -0.3px 0 0 currentColor, 0 0.3px 0 currentColor, 0 -0.3px 0 currentColor;
+  }
+  .recibo { width: 72mm; }
+  @media print {
+    body { padding: 0; }
+    .recibo { width: 72mm; }
+  }
 </style>
 </head>
 <body onload="window.print()">
@@ -700,7 +759,7 @@ function abrirReciboGeneral(d) {
 
   <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:10px;margin-bottom:10px;">
     <div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">Estado de Cuenta</div>
-    <div style="font-size:15px;font-weight:700;letter-spacing:1px;">AGRO NARANJITO</div>
+    <div style="font-size:16px;font-weight:900;letter-spacing:1px;">AGRO NARANJITO</div>
     <div style="font-size:9px;color:#000;margin-top:4px;">${fecha}</div>
   </div>
 
@@ -740,8 +799,8 @@ function abrirReciboGeneral(d) {
   </div>
 
   <div style="border:2px solid #000;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-    <span style="font-size:12px;font-weight:700;">SALDO ACTUAL</span>
-    <span style="font-size:18px;font-weight:700;">$${restante.toFixed(2)}</span>
+    <span style="font-size:12px;font-weight:900;">SALDO ACTUAL</span>
+    <span style="font-size:19px;font-weight:900;">$${restante.toFixed(2)}</span>
   </div>
 
   <div style="text-align:center;font-size:9px;color:#000;">
@@ -759,6 +818,7 @@ function limpiar() {
   document.getElementById("apellido").value  = "";
   document.getElementById("cedula").value    = "";
   document.getElementById("celular").value   = "";
+  document.getElementById("correo").value    = "";
   document.getElementById("direccion").value = "";
   document.getElementById("monto").value     = "";
   if (document.getElementById("meses")) document.getElementById("meses").value = "";

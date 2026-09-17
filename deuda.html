@@ -611,7 +611,7 @@ function abrirRecibo(d, monto, tipoPago, banco, comprobante, remitente) {
           <td style="text-align:left;padding:2px 0;">${p.nombre} x${p.cantidad}</td>
           <td style="text-align:right;padding:2px 0;font-weight:900;white-space:nowrap;">$${(p.precio * p.cantidad).toFixed(2)}</td>
         </tr>`).join("")
-    : `<tr><td style="font-size:10px;color:#000;">Sin productos</td></tr>`;
+    : `<tr><td style="font-size:12px;color:#000;">Sin productos</td></tr>`;
 
   let filasHistorial = "";
   let totalAcumulado = 0;
@@ -629,19 +629,19 @@ function abrirRecibo(d, monto, tipoPago, banco, comprobante, remitente) {
         </tr>`;
     });
   } else {
-    filasHistorial = `<tr><td colspan="3" style="font-size:10px;color:#000;padding:5px 0;">Sin pagos</td></tr>`;
+    filasHistorial = `<tr><td colspan="3" style="font-size:12px;color:#000;padding:5px 0;">Sin pagos</td></tr>`;
   }
 
   let infoPago = tipoPago === "transferencia" ? `
-    <div style="font-size:10px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px dashed #000;">
-      <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:4px;">Metodo de pago</div>
+    <div style="font-size:12px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px dashed #000;">
+      <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:4px;">Metodo de pago</div>
       <b>Transferencia</b><br>
       Banco: ${banco}<br>
       Remitente: ${remitente || "-"}<br>
       Comprobante: ${comprobante}
     </div>` : `
-    <div style="font-size:10px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px dashed #000;">
-      <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:4px;">Metodo de pago</div>
+    <div style="font-size:12px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px dashed #000;">
+      <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:4px;">Metodo de pago</div>
       <b>Efectivo</b>
     </div>`;
 
@@ -684,27 +684,27 @@ function abrirRecibo(d, monto, tipoPago, banco, comprobante, remitente) {
 <body onload="window.print()">
 <div class="recibo">
 
-  <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:8px;">
-    <div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">Comprobante de Abono</div>
-    <div style="font-size:16px;font-weight:900;letter-spacing:1px;">AGRO NARANJITO</div>
-    <div style="font-size:9px;color:#000;margin-top:4px;">${fecha}</div>
+  <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:10px;margin-bottom:10px;">
+    <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">Comprobante de Abono</div>
+    <div style="font-size:20px;font-weight:900;letter-spacing:1px;">AGRO NARANJITO</div>
+    <div style="font-size:11px;color:#000;margin-top:4px;">${fecha}</div>
   </div>
 
-  <div style="margin-bottom:8px;border-bottom:1px dashed #000;padding-bottom:8px;">
-    <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:4px;">Cliente</div>
-    <div style="font-size:13px;font-weight:900;">${d.cliente || "-"}</div>
-    <div style="font-size:10px;margin-top:3px;">CI: ${d.cedula || "-"}</div>
-    <div style="font-size:10px;">Tel: ${d.celular || "-"}</div>
+  <div style="margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px;">
+    <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:4px;">Cliente</div>
+    <div style="font-size:16px;font-weight:900;">${d.cliente || "-"}</div>
+    <div style="font-size:12px;margin-top:3px;">CI: ${d.cedula || "-"}</div>
+    <div style="font-size:12px;">Tel: ${d.celular || "-"}</div>
   </div>
 
-  <div style="margin-bottom:8px;border-bottom:1px dashed #000;padding-bottom:8px;">
-    <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:5px;">Productos</div>
-    <table style="font-size:11px;"><tbody>${productos}</tbody></table>
+  <div style="margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px;">
+    <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:5px;">Productos</div>
+    <table style="font-size:13px;"><tbody>${productos}</tbody></table>
   </div>
 
-  <div style="margin-bottom:8px;border-bottom:1px dashed #000;padding-bottom:8px;">
-    <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:5px;">Historial de pagos</div>
-    <table style="font-size:9px;">
+  <div style="margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px;">
+    <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:5px;">Historial de pagos</div>
+    <table style="font-size:11px;">
       <thead>
         <tr style="font-weight:900;text-transform:uppercase;border-bottom:1px solid #000;">
           <th style="text-align:left;padding:3px 0;">Fecha</th>
@@ -715,8 +715,8 @@ function abrirRecibo(d, monto, tipoPago, banco, comprobante, remitente) {
       <tbody>${filasHistorial}</tbody>
       <tfoot>
         <tr style="border-top:1px solid #000;">
-          <td style="padding:4px 0;font-size:10px;">Total abonado</td>
-          <td colspan="2" style="text-align:right;padding:4px 0;font-size:10px;font-weight:900;">$${totalAcumulado.toFixed(2)}</td>
+          <td style="padding:4px 0;font-size:12px;">Total abonado</td>
+          <td colspan="2" style="text-align:right;padding:4px 0;font-size:12px;font-weight:900;">$${totalAcumulado.toFixed(2)}</td>
         </tr>
       </tfoot>
     </table>
@@ -724,7 +724,7 @@ function abrirRecibo(d, monto, tipoPago, banco, comprobante, remitente) {
 
   ${infoPago}
 
-  <table style="font-size:11px;margin-bottom:8px;border-bottom:1px dashed #000;padding-bottom:8px;">
+  <table style="font-size:13px;margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px;">
     <tr><td style="text-align:left;padding:2px 0;">Total deuda</td><td style="text-align:right;padding:2px 0;">$${total.toFixed(2)}</td></tr>
     <tr><td style="text-align:left;padding:2px 0;">Total pagado</td><td style="text-align:right;padding:2px 0;">$${pagado.toFixed(2)}</td></tr>
     <tr><td style="text-align:left;padding:2px 0;font-weight:900;">Restante</td><td style="text-align:right;padding:2px 0;font-weight:900;">$${restante.toFixed(2)}</td></tr>
@@ -732,12 +732,12 @@ function abrirRecibo(d, monto, tipoPago, banco, comprobante, remitente) {
 
   <table style="border:2px solid #000;margin-bottom:10px;">
     <tr>
-      <td style="padding:8px 10px;font-size:12px;font-weight:900;text-align:left;">ESTE ABONO</td>
-      <td style="padding:8px 10px;font-size:19px;font-weight:900;text-align:right;">$${monto.toFixed(2)}</td>
+      <td style="padding:8px 10px;font-size:15px;font-weight:900;text-align:left;">ESTE ABONO</td>
+      <td style="padding:8px 10px;font-size:24px;font-weight:900;text-align:right;">$${monto.toFixed(2)}</td>
     </tr>
   </table>
 
-  <div style="text-align:center;font-size:9px;color:#000;">
+  <div style="text-align:center;font-size:11px;color:#000;">
     Gracias por su pago<br>Agro Naranjito
   </div>
 
@@ -758,7 +758,7 @@ function abrirReciboGeneral(d) {
           <td style="text-align:left;padding:2px 0;">${p.nombre} x${p.cantidad}</td>
           <td style="text-align:right;padding:2px 0;font-weight:900;white-space:nowrap;">$${(p.precio * p.cantidad).toFixed(2)}</td>
         </tr>`).join("")
-    : `<tr><td style="font-size:10px;color:#000;">Sin productos</td></tr>`;
+    : `<tr><td style="font-size:12px;color:#000;">Sin productos</td></tr>`;
 
   let filasHistorial = "";
   let totalAcumulado = 0;
@@ -778,7 +778,7 @@ function abrirReciboGeneral(d) {
         </tr>`;
     });
   } else {
-    filasHistorial = `<tr><td colspan="3" style="font-size:10px;color:#000;padding:5px 0;">Sin pagos</td></tr>`;
+    filasHistorial = `<tr><td colspan="3" style="font-size:12px;color:#000;padding:5px 0;">Sin pagos</td></tr>`;
   }
 
   const pagado   = d.pagado || 0;
@@ -820,27 +820,27 @@ function abrirReciboGeneral(d) {
 <body onload="window.print()">
 <div class="recibo">
 
-  <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:8px;">
-    <div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">Estado de Cuenta</div>
-    <div style="font-size:16px;font-weight:900;letter-spacing:1px;">AGRO NARANJITO</div>
-    <div style="font-size:9px;color:#000;margin-top:4px;">${fecha}</div>
+  <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:10px;margin-bottom:10px;">
+    <div style="font-size:10px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">Estado de Cuenta</div>
+    <div style="font-size:20px;font-weight:900;letter-spacing:1px;">AGRO NARANJITO</div>
+    <div style="font-size:11px;color:#000;margin-top:4px;">${fecha}</div>
   </div>
 
-  <div style="margin-bottom:8px;border-bottom:1px dashed #000;padding-bottom:8px;">
-    <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:4px;">Cliente</div>
-    <div style="font-size:13px;font-weight:900;">${d.cliente || "-"}</div>
-    <div style="font-size:10px;margin-top:3px;">CI: ${d.cedula || "-"}</div>
-    <div style="font-size:10px;">Tel: ${d.celular || "-"}</div>
+  <div style="margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px;">
+    <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:4px;">Cliente</div>
+    <div style="font-size:16px;font-weight:900;">${d.cliente || "-"}</div>
+    <div style="font-size:12px;margin-top:3px;">CI: ${d.cedula || "-"}</div>
+    <div style="font-size:12px;">Tel: ${d.celular || "-"}</div>
   </div>
 
-  <div style="margin-bottom:8px;border-bottom:1px dashed #000;padding-bottom:8px;">
-    <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:5px;">Productos</div>
-    <table style="font-size:11px;"><tbody>${productos}</tbody></table>
+  <div style="margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px;">
+    <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:5px;">Productos</div>
+    <table style="font-size:13px;"><tbody>${productos}</tbody></table>
   </div>
 
-  <div style="margin-bottom:8px;border-bottom:1px dashed #000;padding-bottom:8px;">
-    <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:5px;">Historial de pagos</div>
-    <table style="font-size:9px;">
+  <div style="margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px;">
+    <div style="font-size:10px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:5px;">Historial de pagos</div>
+    <table style="font-size:11px;">
       <thead>
         <tr style="font-weight:900;text-transform:uppercase;border-bottom:1px solid #000;">
           <th style="text-align:left;padding:3px 0;">Fecha</th>
@@ -851,14 +851,14 @@ function abrirReciboGeneral(d) {
       <tbody>${filasHistorial}</tbody>
       <tfoot>
         <tr style="border-top:1px solid #000;">
-          <td style="padding:4px 0;font-size:10px;">Total abonado</td>
-          <td colspan="2" style="text-align:right;padding:4px 0;font-size:10px;font-weight:900;">$${totalAcumulado.toFixed(2)}</td>
+          <td style="padding:4px 0;font-size:12px;">Total abonado</td>
+          <td colspan="2" style="text-align:right;padding:4px 0;font-size:12px;font-weight:900;">$${totalAcumulado.toFixed(2)}</td>
         </tr>
       </tfoot>
     </table>
   </div>
 
-  <table style="font-size:11px;margin-bottom:8px;border-bottom:1px dashed #000;padding-bottom:8px;">
+  <table style="font-size:13px;margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px;">
     <tr><td style="text-align:left;padding:2px 0;">Total deuda</td><td style="text-align:right;padding:2px 0;">$${total.toFixed(2)}</td></tr>
     <tr><td style="text-align:left;padding:2px 0;">Total pagado</td><td style="text-align:right;padding:2px 0;">$${pagado.toFixed(2)}</td></tr>
     <tr><td style="text-align:left;padding:2px 0;font-weight:900;">Restante</td><td style="text-align:right;padding:2px 0;font-weight:900;">$${restante.toFixed(2)}</td></tr>
@@ -866,12 +866,12 @@ function abrirReciboGeneral(d) {
 
   <table style="border:2px solid #000;margin-bottom:10px;">
     <tr>
-      <td style="padding:8px 10px;font-size:12px;font-weight:900;text-align:left;">SALDO ACTUAL</td>
-      <td style="padding:8px 10px;font-size:19px;font-weight:900;text-align:right;">$${restante.toFixed(2)}</td>
+      <td style="padding:8px 10px;font-size:15px;font-weight:900;text-align:left;">SALDO ACTUAL</td>
+      <td style="padding:8px 10px;font-size:24px;font-weight:900;text-align:right;">$${restante.toFixed(2)}</td>
     </tr>
   </table>
 
-  <div style="text-align:center;font-size:9px;color:#000;">
+  <div style="text-align:center;font-size:11px;color:#000;">
     Gracias por su preferencia<br>Agro Naranjito
   </div>
 

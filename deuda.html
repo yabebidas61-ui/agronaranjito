@@ -508,6 +508,10 @@ async function confirmarAbono() {
   const btnConfirmar = document.querySelector(".btn-confirmar");
   if (btnConfirmar) btnConfirmar.disabled = true;
 
+  // Guardamos el correo del cliente ANTES del fetch (por si el backend no lo devuelve en la respuesta)
+  let clienteLocal  = deudas.find(x => x._id === deudaIdActual);
+  let correoCliente = clienteLocal ? (clienteLocal.correo || "") : "";
+
   try {
     const res = await fetch(API + '/deudas/pagar', {
       method: "POST",
@@ -532,7 +536,19 @@ async function confirmarAbono() {
     // El endpoint /deudas/pagar en el backend ya lo hace internamente.
 
     cerrarModal("modalOverlay");
-    abrirRecibo(data, monto, tipoPagoActual, banco, comprobante, remitente);
+
+    // 1) Primero se abre el correo (no bloquea nada)
+    enviarComprobanteCorreo(data, correoCliente, monto, tipoPagoActual);
+
+    // 2) Luego, con un pequeño retraso, se abre la ventana de impresión.
+    //    Esto evita que el navegador se "trabe": si se abren las dos
+    //    ventanas al mismo tiempo y una de ellas dispara el diálogo de
+    //    impresión (que es bloqueante), la del correo puede quedarse
+    //    congelada esperando su turno.
+    setTimeout(() => {
+      abrirRecibo(data, monto, tipoPagoActual, banco, comprobante, remitente);
+    }, 400);
+
     cargar();
 
   } catch (err) {
@@ -541,6 +557,40 @@ async function confirmarAbono() {
   } finally {
     if (btnConfirmar) btnConfirmar.disabled = false;
   }
+}
+
+// ================= ENVIAR COMPROBANTE DE ABONO POR CORREO =================
+// Nota: por seguridad del navegador, JS no puede "enviar" un correo solo;
+// esto abre Gmail ya listo (destinatario, asunto y mensaje) para que
+// solo se presione "Enviar". Si el cliente no tiene correo guardado, no hace nada.
+function enviarComprobanteCorreo(d, correo, monto, tipoPago) {
+  if (!correo) return;
+
+  const pagado   = d.pagado  || 0;
+  const total    = d.total   || 0;
+  const restante = d.restante ?? (total - pagado);
+  const metodo   = tipoPago === "transferencia" ? "Transferencia" : "Efectivo";
+  const fecha    = new Date().toLocaleString("es-EC");
+
+  const asunto = encodeURIComponent(`Comprobante de pago - Agro Naranjito`);
+  const cuerpo = encodeURIComponent(
+`Hola ${d.cliente || ""},
+
+Le saluda Agro Naranjito. Confirmamos la recepción de su abono:
+
+Fecha: ${fecha}
+Monto abonado: $${monto.toFixed(2)}
+Método de pago: ${metodo}
+Total de la deuda: $${total.toFixed(2)}
+Total pagado hasta la fecha: $${pagado.toFixed(2)}
+Saldo pendiente: $${restante.toFixed(2)}
+
+Gracias por su pago.
+Agro Naranjito`
+  );
+
+  const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(correo)}&su=${asunto}&body=${cuerpo}`;
+  window.open(url, "_blank");
 }
 
 // ================= IMPRIMIR RECIBO DESDE LA TABLA =================
@@ -557,11 +607,11 @@ function abrirRecibo(d, monto, tipoPago, banco, comprobante, remitente) {
 
   let productos = (d.productos && d.productos.length)
     ? d.productos.map(p => `
-        <div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11px;">
-          <span>${p.nombre} x${p.cantidad}</span>
-          <b>$${(p.precio * p.cantidad).toFixed(2)}</b>
-        </div>`).join("")
-    : `<div style="font-size:10px;color:#000;">Sin productos</div>`;
+        <tr>
+          <td style="text-align:left;padding:2px 0;">${p.nombre} x${p.cantidad}</td>
+          <td style="text-align:right;padding:2px 0;font-weight:900;white-space:nowrap;">$${(p.precio * p.cantidad).toFixed(2)}</td>
+        </tr>`).join("")
+    : `<tr><td style="font-size:10px;color:#000;">Sin productos</td></tr>`;
 
   let filasHistorial = "";
   let totalAcumulado = 0;
@@ -572,26 +622,26 @@ function abrirRecibo(d, monto, tipoPago, banco, comprobante, remitente) {
       const fecha = new Date(p.fecha).toLocaleDateString("es-EC");
       const metodo = p.tipoPago === "transferencia" ? "Transf." : "Efectivo";
       filasHistorial += `
-        <div style="display:grid;grid-template-columns:1fr 65px 65px;font-size:10px;padding:5px 0;border-bottom:1px dashed #000;${esUltimo ? 'font-weight:700;' : ''}">
-          <span>${fecha}</span>
-          <span style="text-align:right;">$${p.monto.toFixed(2)}</span>
-          <span style="text-align:right;">${metodo}</span>
-        </div>`;
+        <tr style="border-bottom:1px dashed #000;${esUltimo ? 'font-weight:900;' : ''}">
+          <td style="text-align:left;padding:3px 0;">${fecha}</td>
+          <td style="text-align:right;padding:3px 0;">$${p.monto.toFixed(2)}</td>
+          <td style="text-align:right;padding:3px 0;">${metodo}</td>
+        </tr>`;
     });
   } else {
-    filasHistorial = `<div style="font-size:10px;color:#000;padding:5px 0;">Sin pagos</div>`;
+    filasHistorial = `<tr><td colspan="3" style="font-size:10px;color:#000;padding:5px 0;">Sin pagos</td></tr>`;
   }
 
   let infoPago = tipoPago === "transferencia" ? `
-    <div style="font-size:10px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed #000;">
-      <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:4px;">Método de pago</div>
+    <div style="font-size:10px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px dashed #000;">
+      <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:4px;">Metodo de pago</div>
       <b>Transferencia</b><br>
       Banco: ${banco}<br>
       Remitente: ${remitente || "-"}<br>
       Comprobante: ${comprobante}
     </div>` : `
-    <div style="font-size:10px;margin-bottom:10px;padding-bottom:10px;border-bottom:1px dashed #000;">
-      <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:4px;">Método de pago</div>
+    <div style="font-size:10px;margin-bottom:8px;padding-bottom:8px;border-bottom:1px dashed #000;">
+      <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:4px;">Metodo de pago</div>
       <b>Efectivo</b>
     </div>`;
 
@@ -615,68 +665,77 @@ function abrirRecibo(d, monto, tipoPago, banco, comprobante, remitente) {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  body { display:flex; justify-content:center; padding: 3mm 0; }
+  /* Sin flex ni grid: muchas apps/impresoras térmicas de 80mm no las
+     interpretan bien y desalinean el recibo. Todo se maneja con
+     bloques normales y tablas simples, que sí son 100% compatibles. */
+  body { padding: 2mm 0; }
+  table { width:100%; border-collapse:collapse; }
   /* Truco para que la térmica marque más negro: se duplica el trazo del texto */
   .recibo, .recibo * {
     text-shadow: 0.3px 0 0 currentColor, -0.3px 0 0 currentColor, 0 0.3px 0 currentColor, 0 -0.3px 0 currentColor;
   }
-  .recibo { width: 72mm; }
+  .recibo { width: 80mm; padding: 0 3mm; }
   @media print {
     body { padding: 0; }
-    .recibo { width: 72mm; }
+    .recibo { width: 80mm; padding: 0 3mm; }
   }
 </style>
 </head>
 <body onload="window.print()">
 <div class="recibo">
 
-  <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:10px;margin-bottom:10px;">
+  <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:8px;">
     <div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">Comprobante de Abono</div>
     <div style="font-size:16px;font-weight:900;letter-spacing:1px;">AGRO NARANJITO</div>
     <div style="font-size:9px;color:#000;margin-top:4px;">${fecha}</div>
   </div>
 
-  <div style="margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px;">
+  <div style="margin-bottom:8px;border-bottom:1px dashed #000;padding-bottom:8px;">
     <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:4px;">Cliente</div>
-    <div style="font-size:13px;font-weight:700;">${d.cliente || "-"}</div>
+    <div style="font-size:13px;font-weight:900;">${d.cliente || "-"}</div>
     <div style="font-size:10px;margin-top:3px;">CI: ${d.cedula || "-"}</div>
     <div style="font-size:10px;">Tel: ${d.celular || "-"}</div>
   </div>
 
-  <div style="margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px;">
-    <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:6px;">Productos</div>
-    ${productos}
+  <div style="margin-bottom:8px;border-bottom:1px dashed #000;padding-bottom:8px;">
+    <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:5px;">Productos</div>
+    <table style="font-size:11px;"><tbody>${productos}</tbody></table>
   </div>
 
-  <div style="margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px;">
-    <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:6px;">Historial de pagos</div>
-    <div style="display:grid;grid-template-columns:1fr 65px 65px;font-size:8px;font-weight:700;text-transform:uppercase;color:#000;padding:4px 0;border-bottom:1px solid #000;">
-      <span>Fecha</span><span style="text-align:right;">Monto</span><span style="text-align:right;">Método</span>
-    </div>
-    ${filasHistorial}
-    <div style="display:flex;justify-content:space-between;font-size:10px;padding:5px 0;border-top:1px solid #000;margin-top:2px;">
-      <span style="color:#000;">Total abonado</span><b>$${totalAcumulado.toFixed(2)}</b>
-    </div>
+  <div style="margin-bottom:8px;border-bottom:1px dashed #000;padding-bottom:8px;">
+    <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:5px;">Historial de pagos</div>
+    <table style="font-size:9px;">
+      <thead>
+        <tr style="font-weight:900;text-transform:uppercase;border-bottom:1px solid #000;">
+          <th style="text-align:left;padding:3px 0;">Fecha</th>
+          <th style="text-align:right;padding:3px 0;">Monto</th>
+          <th style="text-align:right;padding:3px 0;">Metodo</th>
+        </tr>
+      </thead>
+      <tbody>${filasHistorial}</tbody>
+      <tfoot>
+        <tr style="border-top:1px solid #000;">
+          <td style="padding:4px 0;font-size:10px;">Total abonado</td>
+          <td colspan="2" style="text-align:right;padding:4px 0;font-size:10px;font-weight:900;">$${totalAcumulado.toFixed(2)}</td>
+        </tr>
+      </tfoot>
+    </table>
   </div>
 
   ${infoPago}
 
-  <div style="margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px;font-size:11px;">
-    <div style="display:flex;justify-content:space-between;padding:3px 0;">
-      <span>Total deuda</span><span>$${total.toFixed(2)}</span>
-    </div>
-    <div style="display:flex;justify-content:space-between;padding:3px 0;">
-      <span>Total pagado</span><span>$${pagado.toFixed(2)}</span>
-    </div>
-    <div style="display:flex;justify-content:space-between;padding:3px 0;">
-      <span>Restante</span><b>$${restante.toFixed(2)}</b>
-    </div>
-  </div>
+  <table style="font-size:11px;margin-bottom:8px;border-bottom:1px dashed #000;padding-bottom:8px;">
+    <tr><td style="text-align:left;padding:2px 0;">Total deuda</td><td style="text-align:right;padding:2px 0;">$${total.toFixed(2)}</td></tr>
+    <tr><td style="text-align:left;padding:2px 0;">Total pagado</td><td style="text-align:right;padding:2px 0;">$${pagado.toFixed(2)}</td></tr>
+    <tr><td style="text-align:left;padding:2px 0;font-weight:900;">Restante</td><td style="text-align:right;padding:2px 0;font-weight:900;">$${restante.toFixed(2)}</td></tr>
+  </table>
 
-  <div style="border:2px solid #000;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-    <span style="font-size:12px;font-weight:900;">ESTE ABONO</span>
-    <span style="font-size:19px;font-weight:900;">$${monto.toFixed(2)}</span>
-  </div>
+  <table style="border:2px solid #000;margin-bottom:10px;">
+    <tr>
+      <td style="padding:8px 10px;font-size:12px;font-weight:900;text-align:left;">ESTE ABONO</td>
+      <td style="padding:8px 10px;font-size:19px;font-weight:900;text-align:right;">$${monto.toFixed(2)}</td>
+    </tr>
+  </table>
 
   <div style="text-align:center;font-size:9px;color:#000;">
     Gracias por su pago<br>Agro Naranjito
@@ -695,11 +754,11 @@ function abrirReciboGeneral(d) {
 
   let productos = (d.productos && d.productos.length)
     ? d.productos.map(p => `
-        <div style="display:flex;justify-content:space-between;padding:3px 0;font-size:11px;">
-          <span>${p.nombre} x${p.cantidad}</span>
-          <b>$${(p.precio * p.cantidad).toFixed(2)}</b>
-        </div>`).join("")
-    : `<div style="font-size:10px;color:#000;">Sin productos</div>`;
+        <tr>
+          <td style="text-align:left;padding:2px 0;">${p.nombre} x${p.cantidad}</td>
+          <td style="text-align:right;padding:2px 0;font-weight:900;white-space:nowrap;">$${(p.precio * p.cantidad).toFixed(2)}</td>
+        </tr>`).join("")
+    : `<tr><td style="font-size:10px;color:#000;">Sin productos</td></tr>`;
 
   let filasHistorial = "";
   let totalAcumulado = 0;
@@ -712,14 +771,14 @@ function abrirReciboGeneral(d) {
       const fecha = new Date(p.fecha).toLocaleDateString("es-EC");
       const metodo = p.tipoPago === "transferencia" ? "Transf." : "Efectivo";
       filasHistorial += `
-        <div style="display:grid;grid-template-columns:1fr 65px 65px;font-size:10px;padding:5px 0;border-bottom:1px dashed #000;${esUltimo ? 'font-weight:700;' : ''}">
-          <span>${fecha}</span>
-          <span style="text-align:right;">$${p.monto.toFixed(2)}</span>
-          <span style="text-align:right;">${metodo}</span>
-        </div>`;
+        <tr style="border-bottom:1px dashed #000;${esUltimo ? 'font-weight:900;' : ''}">
+          <td style="text-align:left;padding:3px 0;">${fecha}</td>
+          <td style="text-align:right;padding:3px 0;">$${p.monto.toFixed(2)}</td>
+          <td style="text-align:right;padding:3px 0;">${metodo}</td>
+        </tr>`;
     });
   } else {
-    filasHistorial = `<div style="font-size:10px;color:#000;padding:5px 0;">Sin pagos</div>`;
+    filasHistorial = `<tr><td colspan="3" style="font-size:10px;color:#000;padding:5px 0;">Sin pagos</td></tr>`;
   }
 
   const pagado   = d.pagado || 0;
@@ -742,66 +801,75 @@ function abrirReciboGeneral(d) {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  body { display:flex; justify-content:center; padding: 3mm 0; }
+  /* Sin flex ni grid: muchas apps/impresoras térmicas de 80mm no las
+     interpretan bien y desalinean el recibo. Todo se maneja con
+     bloques normales y tablas simples, que sí son 100% compatibles. */
+  body { padding: 2mm 0; }
+  table { width:100%; border-collapse:collapse; }
   /* Truco para que la térmica marque más negro: se duplica el trazo del texto */
   .recibo, .recibo * {
     text-shadow: 0.3px 0 0 currentColor, -0.3px 0 0 currentColor, 0 0.3px 0 currentColor, 0 -0.3px 0 currentColor;
   }
-  .recibo { width: 72mm; }
+  .recibo { width: 80mm; padding: 0 3mm; }
   @media print {
     body { padding: 0; }
-    .recibo { width: 72mm; }
+    .recibo { width: 80mm; padding: 0 3mm; }
   }
 </style>
 </head>
 <body onload="window.print()">
 <div class="recibo">
 
-  <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:10px;margin-bottom:10px;">
+  <div style="text-align:center;border-bottom:2px solid #000;padding-bottom:8px;margin-bottom:8px;">
     <div style="font-size:8px;letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">Estado de Cuenta</div>
     <div style="font-size:16px;font-weight:900;letter-spacing:1px;">AGRO NARANJITO</div>
     <div style="font-size:9px;color:#000;margin-top:4px;">${fecha}</div>
   </div>
 
-  <div style="margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px;">
+  <div style="margin-bottom:8px;border-bottom:1px dashed #000;padding-bottom:8px;">
     <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:4px;">Cliente</div>
-    <div style="font-size:13px;font-weight:700;">${d.cliente || "-"}</div>
+    <div style="font-size:13px;font-weight:900;">${d.cliente || "-"}</div>
     <div style="font-size:10px;margin-top:3px;">CI: ${d.cedula || "-"}</div>
     <div style="font-size:10px;">Tel: ${d.celular || "-"}</div>
   </div>
 
-  <div style="margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px;">
-    <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:6px;">Productos</div>
-    ${productos}
+  <div style="margin-bottom:8px;border-bottom:1px dashed #000;padding-bottom:8px;">
+    <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:5px;">Productos</div>
+    <table style="font-size:11px;"><tbody>${productos}</tbody></table>
   </div>
 
-  <div style="margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px;">
-    <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:6px;">Historial de pagos</div>
-    <div style="display:grid;grid-template-columns:1fr 65px 65px;font-size:8px;font-weight:700;text-transform:uppercase;color:#000;padding:4px 0;border-bottom:1px solid #000;">
-      <span>Fecha</span><span style="text-align:right;">Monto</span><span style="text-align:right;">Método</span>
-    </div>
-    ${filasHistorial}
-    <div style="display:flex;justify-content:space-between;font-size:10px;padding:5px 0;border-top:1px solid #000;margin-top:2px;">
-      <span style="color:#000;">Total abonado</span><b>$${totalAcumulado.toFixed(2)}</b>
-    </div>
+  <div style="margin-bottom:8px;border-bottom:1px dashed #000;padding-bottom:8px;">
+    <div style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:#000;margin-bottom:5px;">Historial de pagos</div>
+    <table style="font-size:9px;">
+      <thead>
+        <tr style="font-weight:900;text-transform:uppercase;border-bottom:1px solid #000;">
+          <th style="text-align:left;padding:3px 0;">Fecha</th>
+          <th style="text-align:right;padding:3px 0;">Monto</th>
+          <th style="text-align:right;padding:3px 0;">Metodo</th>
+        </tr>
+      </thead>
+      <tbody>${filasHistorial}</tbody>
+      <tfoot>
+        <tr style="border-top:1px solid #000;">
+          <td style="padding:4px 0;font-size:10px;">Total abonado</td>
+          <td colspan="2" style="text-align:right;padding:4px 0;font-size:10px;font-weight:900;">$${totalAcumulado.toFixed(2)}</td>
+        </tr>
+      </tfoot>
+    </table>
   </div>
 
-  <div style="margin-bottom:10px;border-bottom:1px dashed #000;padding-bottom:10px;font-size:11px;">
-    <div style="display:flex;justify-content:space-between;padding:3px 0;">
-      <span>Total deuda</span><span>$${total.toFixed(2)}</span>
-    </div>
-    <div style="display:flex;justify-content:space-between;padding:3px 0;">
-      <span>Total pagado</span><span>$${pagado.toFixed(2)}</span>
-    </div>
-    <div style="display:flex;justify-content:space-between;padding:3px 0;">
-      <span>Restante</span><b>$${restante.toFixed(2)}</b>
-    </div>
-  </div>
+  <table style="font-size:11px;margin-bottom:8px;border-bottom:1px dashed #000;padding-bottom:8px;">
+    <tr><td style="text-align:left;padding:2px 0;">Total deuda</td><td style="text-align:right;padding:2px 0;">$${total.toFixed(2)}</td></tr>
+    <tr><td style="text-align:left;padding:2px 0;">Total pagado</td><td style="text-align:right;padding:2px 0;">$${pagado.toFixed(2)}</td></tr>
+    <tr><td style="text-align:left;padding:2px 0;font-weight:900;">Restante</td><td style="text-align:right;padding:2px 0;font-weight:900;">$${restante.toFixed(2)}</td></tr>
+  </table>
 
-  <div style="border:2px solid #000;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
-    <span style="font-size:12px;font-weight:900;">SALDO ACTUAL</span>
-    <span style="font-size:19px;font-weight:900;">$${restante.toFixed(2)}</span>
-  </div>
+  <table style="border:2px solid #000;margin-bottom:10px;">
+    <tr>
+      <td style="padding:8px 10px;font-size:12px;font-weight:900;text-align:left;">SALDO ACTUAL</td>
+      <td style="padding:8px 10px;font-size:19px;font-weight:900;text-align:right;">$${restante.toFixed(2)}</td>
+    </tr>
+  </table>
 
   <div style="text-align:center;font-size:9px;color:#000;">
     Gracias por su preferencia<br>Agro Naranjito

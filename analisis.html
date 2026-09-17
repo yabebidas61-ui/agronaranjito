@@ -130,6 +130,12 @@
       <div class="card"><h4>💸 Menos ganancia</h4><div id="gLow"></div></div>
     </div>
 
+    <!-- MES TOP Y CLIENTE TOP -->
+    <div class="grid" style="grid-template-columns: repeat(2, 1fr);">
+      <div class="card"><h4>📅 Mes más vendido</h4><div class="big" id="mesTop">-</div></div>
+      <div class="card"><h4>👑 Cliente que más compra</h4><div class="big" id="clienteTop">-</div></div>
+    </div>
+
     <!-- GRÁFICO DÍA -->
     <div class="card">
       <h2>📊 Ventas por día</h2>
@@ -166,7 +172,7 @@
     <!-- BUSCAR CLIENTE -->
     <div class="card">
       <h2>🔍 Buscar historial (cliente)</h2>
-      <input id="buscar" placeholder="Nombre / cédula / celular" oninput="buscar()"
+      <input id="buscar" placeholder="Nombre / cédula / celular" oninput="buscarDebounced()"
         style="padding:8px;width:100%;border-radius:6px;border:1px solid #ccc;box-sizing:border-box;">
       <button onclick="cargar()" style="margin-top:8px">Ver todo</button>
     </div>
@@ -174,7 +180,7 @@
     <!-- BUSCAR PRODUCTO -->
     <div class="card">
       <h2>📦 Buscar por producto</h2>
-      <input id="buscarProd" placeholder="Nombre del producto..." oninput="buscarProducto()"
+      <input id="buscarProd" placeholder="Nombre del producto..." oninput="buscarProductoDebounced()"
         style="padding:8px;width:100%;border-radius:6px;border:1px solid #ccc;box-sizing:border-box;">
       <ul id="resultadoProd" style="margin-top:10px"></ul>
     </div>
@@ -210,6 +216,16 @@ const NEGOCIO = {
   telefono: ""
 };
 
+// Cédula genérica que se usa para ventas sin cliente identificado
+// ("Consumidor Final"). Se usa para excluirlo de rankings de clientes.
+const CEDULA_CONSUMIDOR_FINAL = "9999999999999";
+
+function esConsumidorFinal(v) {
+  const cedula = String(v.cedula || "").trim();
+  const nombre = String(v.cliente || "").trim().toLowerCase();
+  return cedula === CEDULA_CONSUMIDOR_FINAL || nombre === "consumidor final";
+}
+
 let ventas   = [];
 let chart1, chart2;
 let _porDia  = {};
@@ -221,6 +237,15 @@ function fechaEC(fecha) {
 }
 function horaEC(fecha) {
   return new Date(fecha).toLocaleTimeString("es-EC", { timeZone: TZ });
+}
+
+// ===== UTILIDAD: DEBOUNCE (evita recalcular/redibujar en cada tecla) =====
+function debounce(fn, delay = 300) {
+  let timer = null;
+  return function (...args) {
+    clearTimeout(timer);
+    timer = setTimeout(() => fn.apply(this, args), delay);
+  };
 }
 
 // ===== BADGE TIPO DE PAGO =====
@@ -412,6 +437,65 @@ function dibujarMes(obj) {
   });
 }
 
+// ===== MES TOP (mes con más ventas en $) =====
+function calcularMesTop(porMes) {
+  const claves = Object.keys(porMes || {});
+  if (claves.length === 0) return null;
+  let mejorMes = claves[0];
+  let mejorValor = Number(porMes[mejorMes]) || 0;
+  claves.forEach(k => {
+    const val = Number(porMes[k]) || 0;
+    if (val > mejorValor) { mejorValor = val; mejorMes = k; }
+  });
+  return { mes: mejorMes, valor: mejorValor };
+}
+
+function nombreMes(clave) {
+  // clave puede venir como "YYYY-MM" o ya como texto legible
+  if (/^\d{4}-\d{2}$/.test(clave)) {
+    const d = new Date(`${clave}-01T00:00:00`);
+    const texto = d.toLocaleDateString("es-EC", { month: "long", year: "numeric" });
+    return texto.charAt(0).toUpperCase() + texto.slice(1);
+  }
+  return clave;
+}
+
+function actualizarMesTop() {
+  const el = document.getElementById("mesTop");
+  const resultado = calcularMesTop(_porMes);
+  if (!resultado) { el.innerText = "-"; return; }
+  el.innerText = `${nombreMes(resultado.mes)} ($${resultado.valor.toFixed(2)})`;
+}
+
+// ===== CLIENTE TOP (cliente que más ha comprado en $) =====
+// "Consumidor Final" (venta sin cliente identificado) NO cuenta para este
+// ranking, porque no es un cliente real y sumaría muchas ventas sueltas
+// como si fuera "una sola persona" comprando muchísimo.
+function calcularClienteTop(listaVentas) {
+  const totales = {};
+  (listaVentas || []).forEach(v => {
+    if (esConsumidorFinal(v)) return; // se descarta, no cuenta como cliente
+    const nombre = (v.cliente && v.cliente.trim()) ? v.cliente.trim() : "Cliente no registrado";
+    const total = Number(v.total) || 0;
+    totales[nombre] = (totales[nombre] || 0) + total;
+  });
+  const claves = Object.keys(totales);
+  if (claves.length === 0) return null;
+  let mejorCliente = claves[0];
+  let mejorValor = totales[mejorCliente];
+  claves.forEach(k => {
+    if (totales[k] > mejorValor) { mejorValor = totales[k]; mejorCliente = k; }
+  });
+  return { cliente: mejorCliente, valor: mejorValor };
+}
+
+function actualizarClienteTop() {
+  const el = document.getElementById("clienteTop");
+  const resultado = calcularClienteTop(ventas);
+  if (!resultado) { el.innerText = "-"; return; }
+  el.innerText = `${resultado.cliente} ($${resultado.valor.toFixed(2)})`;
+}
+
 // ===== CARGAR =====
 async function cargar() {
   const res  = await fetch(API + "/analisis");
@@ -433,6 +517,8 @@ async function cargar() {
 
   dibujarDia(_porDia);
   dibujarMes(_porMes);
+  actualizarMesTop();
+  actualizarClienteTop();
   mostrar(ventas);
 }
 
@@ -478,6 +564,9 @@ async function borrarDia(fecha) {
 // ===== CONSTRUIR TICKET (mismo diseño que el ticket de Venta / index.html) =====
 // Recibe una venta guardada (objeto v) y arma el HTML del comprobante estilo
 // ticket térmico (logo AGRO NARANJITO, RUC, NOTA DE VENTA, etc.)
+// NOTA: se usan TABLAS en vez de flexbox para las filas de productos y el
+// total, porque muchas apps/impresoras térmicas de 80mm (RawBT, etc.) no
+// interpretan bien flexbox y desalinean el ticket.
 function construirTicketDesdeVenta(v) {
   const cliente = v.cliente || "Cliente no registrado";
   const cedula  = v.cedula  || "-";
@@ -547,44 +636,61 @@ function construirTicketDesdeVenta(v) {
     <p><b>Cliente:</b> ${cliente}</p>
     <p><b>Cédula/RUC:</b> ${cedulaMostrar}</p>
     <hr>
+    <table class="tabla-prod"><tbody>
   `;
   productosArr.forEach(p => {
     const cantidad = p.cantidad || 0;
     const sub = (p.subtotal !== undefined && p.subtotal !== null) ? Number(p.subtotal) : Number(p.precio || 0) * cantidad;
-    html += `<div class="fila"><span class="nom">${p.nombre || "-"} x${cantidad}</span><span class="pre">$${sub.toFixed(2)}</span></div>`;
+    html += `<tr><td class="nom">${p.nombre || "-"} x${cantidad}</td><td class="pre">$${sub.toFixed(2)}</td></tr>`;
   });
+  html += `</tbody></table>`;
   html += `<hr><p>Subtotal: $${subtotal.toFixed(2)}</p>`;
   if (pct > 0) html += `<p>Descuento (${pct}%): -$${descuentoMonto.toFixed(2)}</p>`;
   if (tipo === "credito") {
     html += `<p>Interés (${tasaPct}%): $${montoInteres.toFixed(2)}</p>`;
     html += `<p>Meses: ${meses}</p>`;
   }
-  html += `<hr><div class="tot"><span>TOTAL</span><span>$${totalFinal.toFixed(2)}</span></div><hr>`;
+  html += `<hr><table class="tabla-tot"><tr><td class="lbl">TOTAL</td><td class="val">$${totalFinal.toFixed(2)}</td></tr></table><hr>`;
   if (tipo === "efectivo") {
     html += `<p>Pago: $${pago.toFixed(2)}</p><p>Vuelto: $${vuelto.toFixed(2)}</p>`;
   }
   if (tipo === "transferencia") {
     html += `<p>Banco: ${bancoNombre}</p><p>Cuenta: ${bancoCuenta}</p><p>Comprobante: ${comprobante}</p>`;
   }
-  html += `<p style="font-size:11px;color:#555;margin-top:4px">Pago: ${tipo}</p>`;
+  html += `<p style="font-size:12px;color:#000;margin-top:4px">Pago: ${tipo}</p>`;
   html += `<div class="pie">Este documento es un comprobante interno de venta.<br>¡Gracias por su compra! Vuelva pronto 😊</div>`;
   return html;
 }
 
-// CSS del ticket térmico (mismo estilo visual que el #ticketPrint de index.html)
+// CSS del ticket térmico (mismo estilo visual que el #ticketPrint de index.html,
+// pero sin flexbox: usa tablas para que cuadre bien en facturadores de 80mm)
 const TICKET_CSS = `
-  @page { size: 80mm auto; margin: 3mm; }
-  * { box-sizing: border-box; }
-  body { font-family: Arial, sans-serif; width: 72mm; margin: 0 auto; font-size: 15px; color: #000; font-weight: 500; }
-  h2 { text-align: center; margin: 4px 0; font-size: 18px; font-weight: 800; }
-  .sub { text-align: center; font-size: 14px; color: #000; margin: 0 0 4px; font-weight: 600; }
+  @page { size: 80mm auto; margin: 0; }
+  * { box-sizing: border-box; margin:0; padding:0; }
+  html, body {
+    width: 80mm;
+    font-family: Arial, sans-serif;
+    font-size: 15px;
+    color: #000;
+    font-weight: 600;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  body { padding: 2mm 3mm; }
+  table { width: 100%; border-collapse: collapse; }
+  h2 { text-align: center; margin: 4px 0; font-size: 18px; font-weight: 900; }
+  .sub { text-align: center; font-size: 14px; color: #000; margin: 0 0 4px; font-weight: 700; }
   p { margin: 3px 0; font-size: 15px; }
   hr { border: none; border-top: 2px dashed #000; margin: 5px 0; }
-  .fila { display: flex; justify-content: space-between; margin: 3px 0; font-size: 15px; }
-  .nom { flex: 1; padding-right: 4px; }
-  .pre { white-space: nowrap; font-weight: bold; }
-  .tot { display: flex; justify-content: space-between; font-size: 18px; font-weight: 800; margin: 4px 0; }
-  .pie { text-align: center; font-size: 13px; color: #000; margin-top: 8px; font-weight: 600; }
+  /* Filas de productos (antes flex, ahora tabla) */
+  .tabla-prod td { padding: 2px 0; font-size: 15px; }
+  .tabla-prod .nom { text-align: left; }
+  .tabla-prod .pre { text-align: right; white-space: nowrap; font-weight: 900; padding-left: 6px; }
+  /* Total (antes flex, ahora tabla) */
+  .tabla-tot td { font-size: 18px; font-weight: 900; padding: 4px 0; }
+  .tabla-tot .lbl { text-align: left; }
+  .tabla-tot .val { text-align: right; }
+  .pie { text-align: center; font-size: 13px; color: #000; margin-top: 8px; font-weight: 700; }
   svg { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 `;
 
@@ -676,9 +782,12 @@ function imprimirDia(fecha) {
 }
 
 // ===== HISTORIAL =====
+// Construye todo el HTML en un array y lo vuelca al DOM en UNA sola
+// operación (en vez de innerHTML += repetidas veces), para que la lista
+// no se sienta lenta al escribir en los buscadores.
 function mostrar(lista) {
   const ul = document.getElementById("historial");
-  ul.innerHTML = "";
+
   if (!lista || lista.length === 0) { ul.innerHTML = "<li>No hay ventas</li>"; return; }
 
   // Agrupamos por el texto de fecha (para mostrar), pero guardamos también
@@ -691,6 +800,8 @@ function mostrar(lista) {
     if (new Date(v.fecha) > agrupado[f].orden) agrupado[f].orden = new Date(v.fecha);
   });
 
+  const partes = [];
+
   Object.keys(agrupado)
     // Ordenamos usando las fechas REALES (objetos Date), nunca reparseando el texto ya formateado
     .sort((a, b) => agrupado[b].orden - agrupado[a].orden)
@@ -699,7 +810,7 @@ function mostrar(lista) {
       // Ordenar las ventas del día de más reciente a más antigua
       items.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
-      ul.innerHTML += `
+      partes.push(`
         <div style="margin-bottom:20px;">
           <div style="display:flex;justify-content:space-between;align-items:center;background:#eee;padding:10px;border-radius:8px;">
             <b>📅 ${fecha}</b>
@@ -709,24 +820,23 @@ function mostrar(lista) {
             </div>
           </div>
           <button onclick="verDia('${fecha}')" style="margin:8px 0 4px;background:#3498db;color:white;border:none;padding:6px 10px;border-radius:6px;cursor:pointer;">👁 Ver solo este día</button>
-      `;
+      `);
       items.forEach(v => {
         const vid = extraerId(v._id);
         let prods = "";
         if (Array.isArray(v.productos)) {
-          prods = '<ul style="margin:6px 0 0;padding:0;list-style:none;">';
-          v.productos.forEach((p, i) => {
+          const filas = v.productos.map((p, i) => {
             const ne = (p.nombre || "").replace(/'/g,"\\'").replace(/"/g,"&quot;");
-            prods += `
+            return `
               <li style="display:flex;justify-content:space-between;align-items:center;padding:5px 8px;margin-bottom:4px;background:#f9f9f9;border-radius:6px;border-left:3px solid #2980b9;">
                 <span>📦 ${p.nombre} x${p.cantidad}</span>
                 <button onclick="pedirBorrarProducto('${vid}','${ne}',${i})"
                   style="background:#e74c3c;color:white;border:none;padding:4px 9px;border-radius:5px;font-size:13px;cursor:pointer;margin-top:0;">🗑</button>
               </li>`;
           });
-          prods += "</ul>";
+          prods = `<ul style="margin:6px 0 0;padding:0;list-style:none;">${filas.join("")}</ul>`;
         }
-        ul.innerHTML += `
+        partes.push(`
           <div style="background:white;padding:10px;margin-bottom:10px;border-radius:10px;box-shadow:0 2px 6px rgba(0,0,0,0.1);">
             👤 <b>${v.cliente || "-"}</b><br>
             📱 ${v.celular || "-"}<br>
@@ -737,10 +847,12 @@ function mostrar(lista) {
             ${prods}
             <button onclick="imprimirFactura('${vid}')"
               style="background:#27ae60;color:white;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;margin-top:8px;">🖨 Imprimir factura</button>
-          </div>`;
+          </div>`);
       });
-      ul.innerHTML += `</div>`;
+      partes.push(`</div>`);
     });
+
+  ul.innerHTML = partes.join("");
 }
 
 function verDia(fecha) {
@@ -755,16 +867,19 @@ function buscar() {
     (v.celular || "").includes(val)
   ));
 }
+// Versión con debounce: espera a que el usuario deje de escribir para
+// recalcular y redibujar, así no se siente lento tecla por tecla.
+const buscarDebounced = debounce(buscar, 300);
 
 // ===== BUSCAR POR PRODUCTO =====
 // Recorre todas las ventas y muestra, para cada coincidencia de producto,
 // quién lo compró y en qué fecha/hora (hora Ecuador), ordenado del más reciente al más antiguo.
+// Construye el HTML en un array y lo vuelca en UNA sola operación al DOM.
 function buscarProducto() {
   const val = document.getElementById("buscarProd").value.trim().toLowerCase();
   const cont = document.getElementById("resultadoProd");
-  cont.innerHTML = "";
 
-  if (!val) return; // caja vacía: no muestra nada
+  if (!val) { cont.innerHTML = ""; return; } // caja vacía: no muestra nada
 
   const coincidencias = [];
   ventas.forEach(v => {
@@ -793,17 +908,19 @@ function buscarProducto() {
   // Más reciente primero
   coincidencias.sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
 
-  coincidencias.forEach(c => {
-    cont.innerHTML += `
+  const partes = coincidencias.map(c => `
       <li style="background:#f9f9f9;padding:10px;margin-bottom:8px;border-radius:8px;border-left:3px solid #ff3f34;">
         📦 <b>${c.producto}</b> x${c.cantidad}<br>
         👤 ${c.cliente} ${c.cedula !== "-" ? "(" + c.cedula + ")" : ""}<br>
         📱 ${c.celular}<br>
         📅 ${fechaEC(c.fecha)} 🕒 ${horaEC(c.fecha)}<br>
         💰 Total venta: $${c.total} ${badgeTipoPago(c.tipoPago)}
-      </li>`;
-  });
+      </li>`);
+
+  cont.innerHTML = partes.join("");
 }
+// Versión con debounce, igual que en el buscador de clientes.
+const buscarProductoDebounced = debounce(buscarProducto, 300);
 
 cargar();
 </script>

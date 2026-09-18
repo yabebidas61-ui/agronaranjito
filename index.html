@@ -364,6 +364,52 @@ function imprimirAutomatico() {
   }
 }
 
+/* ══════════════════════════════════════
+   ENVIAR FACTURA POR CORREO (Gmail)
+   Solo se llama cuando el cliente SÍ tiene correo registrado.
+   Si no tiene correo, facturar() simplemente no la invoca y solo imprime.
+══════════════════════════════════════ */
+function enviarFacturaCorreo(correo, cliente, datos) {
+  if (!correo) return;
+  const { subtotal, pct, descuentoMonto, totalFinal, tasaPct, montoInteres,
+          meses, pago, vuelto, bancoNombre, bancoCuenta, comprobante, numComprobante } = datos;
+
+  const productosTxt = carrito
+    .map(p => `${p.nombre} x${p.cantidad} = $${(p.precio * p.cantidad).toFixed(2)}`)
+    .join("\n");
+
+  let detallePago = `Método de pago: ${tipoPago}\n`;
+  if (tipoPago === "credito") {
+    detallePago += `Interés: ${tasaPct}%\nMeses: ${meses}\n`;
+  } else if (tipoPago === "efectivo") {
+    detallePago += `Pago recibido: $${pago.toFixed(2)}\nVuelto: $${vuelto.toFixed(2)}\n`;
+  } else if (tipoPago === "transferencia") {
+    detallePago += `Banco: ${bancoNombre}\nCuenta: ${bancoCuenta}\nComprobante: ${comprobante}\n`;
+  }
+
+  const asunto = encodeURIComponent(`Factura ${numComprobante} - ${NEGOCIO.nombreComercial}`);
+  const cuerpo = encodeURIComponent(
+`Hola ${cliente},
+
+Le saluda ${NEGOCIO.nombreComercial}. Se ha registrado la siguiente factura:
+
+N°: ${numComprobante}
+
+Productos:
+${productosTxt}
+
+Subtotal: $${subtotal.toFixed(2)}${pct > 0 ? `\nDescuento (${pct}%): -$${descuentoMonto.toFixed(2)}` : ""}
+TOTAL: $${totalFinal.toFixed(2)}
+
+${detallePago}
+Gracias por su compra.
+${NEGOCIO.nombreComercial}`
+  );
+
+  const url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(correo)}&su=${asunto}&body=${cuerpo}`;
+  window.open(url, "_blank");
+}
+
 /* TIPO DE PAGO */
 function setTipo(tipo) {
   tipoPago = tipo;
@@ -825,7 +871,14 @@ async function facturar() {
 
     // Impresión automática: no hace falta tocar el botón "Imprimir".
     // Si Chrome/Edge está en modo kiosk-printing, sale directo sin diálogo.
-    imprimirAutomatico();
+    // Si el cliente tiene correo, se abre Gmail con la factura y se envía;
+    // si no tiene correo, no se abre Gmail y solo se imprime.
+    if (correo) {
+      enviarFacturaCorreo(correo, cliente, datos);
+      setTimeout(() => { imprimirAutomatico(); }, 500);
+    } else {
+      imprimirAutomatico();
+    }
 
     limpiarFormulario();
     await cargar();

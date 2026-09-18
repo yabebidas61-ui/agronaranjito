@@ -664,6 +664,10 @@ function construirTicketDesdeVenta(v) {
 
 // CSS del ticket térmico (mismo estilo visual que el #ticketPrint de index.html,
 // pero sin flexbox: usa tablas para que cuadre bien en facturadores de 80mm)
+// FIX: se agregó table-layout: fixed y anchos de columna FIJOS e IGUALES en
+// .tabla-prod y .tabla-tot, para que el precio del producto y el TOTAL
+// queden alineados en la misma columna (antes cada tabla calculaba su
+// propio ancho de columna según el contenido y se desalineaban).
 const TICKET_CSS = `
   @page { size: 80mm auto; margin: 0; }
   * { box-sizing: border-box; margin:0; padding:0; }
@@ -677,19 +681,17 @@ const TICKET_CSS = `
     print-color-adjust: exact;
   }
   body { padding: 2mm 3mm; }
-  table { width: 100%; border-collapse: collapse; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
   h2 { text-align: center; margin: 4px 0; font-size: 18px; font-weight: 900; }
   .sub { text-align: center; font-size: 14px; color: #000; margin: 0 0 4px; font-weight: 700; }
   p { margin: 3px 0; font-size: 15px; }
   hr { border: none; border-top: 2px dashed #000; margin: 5px 0; }
-  /* Filas de productos (antes flex, ahora tabla) */
-  .tabla-prod td { padding: 2px 0; font-size: 15px; }
-  .tabla-prod .nom { text-align: left; }
-  .tabla-prod .pre { text-align: right; white-space: nowrap; font-weight: 900; padding-left: 6px; }
-  /* Total (antes flex, ahora tabla) */
+  /* Anchos FIJOS e IGUALES en ambas tablas para que las columnas queden alineadas */
+  .tabla-prod .nom, .tabla-tot .lbl { width: 65%; text-align: left; }
+  .tabla-prod .pre, .tabla-tot .val { width: 35%; text-align: right; }
+  .tabla-prod td { padding: 2px 0; font-size: 15px; word-wrap: break-word; }
+  .tabla-prod .pre { font-weight: 900; padding-left: 6px; }
   .tabla-tot td { font-size: 18px; font-weight: 900; padding: 4px 0; }
-  .tabla-tot .lbl { text-align: left; }
-  .tabla-tot .val { text-align: right; }
   .pie { text-align: center; font-size: 13px; color: #000; margin-top: 8px; font-weight: 700; }
   svg { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 `;

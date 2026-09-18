@@ -71,6 +71,20 @@
       <button onclick="agregar()">Guardar</button>
     </div>
 
+    <div class="card" id="cardCobranza">
+      <h3>⏰ Seguimiento de cobranza</h3>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <button onclick="verAtrasados()" style="background:#e74c3c;">⏰ Ver deudores atrasados</button>
+        <button onclick="verTodos()" style="background:#7f8c8d;">📋 Ver todos</button>
+        <button onclick="abrirRegistroRecordatorios()" style="background:#2980b9;">📜 Ver registro de recordatorios</button>
+      </div>
+      <small style="color:#666; display:block; margin-top:10px;">
+        Se considera <b>atrasado</b> un cliente con deuda pendiente que no registra pagos ni movimientos
+        en los últimos <b id="diasAtrasoTxt">30</b> días.
+      </small>
+      <div id="infoAtrasados" style="margin-top:10px; font-weight:600;"></div>
+    </div>
+
     <div class="card">
       <h3>📋 Deudas</h3>
       <table>
@@ -175,6 +189,70 @@
   </div>
 </div>
 
+<!-- MODAL REGISTRO DE RECORDATORIOS (antes se abría en otra pestaña) -->
+<div class="modal-overlay" id="modalRegistro">
+  <div class="modal" style="width:760px; max-width:95vw; max-height:82vh; overflow-y:auto;">
+    <h3>📜 Registro de recordatorios enviados</h3>
+    <div style="background:#fff3cd; border-left:4px solid #ffc107; padding:10px 14px; border-radius:8px; font-size:13px; color:#856404; margin-bottom:14px;">
+      ⚠️ "Reportar a buró" solo queda anotado en tu registro interno — no envía nada a ningún buró de crédito real (Equifax, DICOM, etc.).
+    </div>
+    <div style="overflow-x:auto;">
+      <table id="tablaRegistro" style="font-size:13px;">
+        <thead>
+          <tr>
+            <th>Cliente</th><th>Fecha</th><th>Hora</th><th>Canal</th><th>Buró</th><th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody id="tbodyRegistro"></tbody>
+      </table>
+    </div>
+    <div class="modal-btns">
+      <button class="btn-cancelar" onclick="cerrarModal('modalRegistro')">Cerrar</button>
+      <button class="btn-confirmar" style="background:#7f8c8d;" onclick="borrarHistorialRecordatorios()">🗑 Borrar historial</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL REPORTAR A BURÓ -->
+<div class="modal-overlay" id="modalBuro">
+  <div class="modal" style="width:420px;">
+    <h3>⚠️ Reportar a buró de crédito</h3>
+    <input type="hidden" id="buro-id">
+    <div id="buro-cliente-info" style="margin-bottom:10px; font-weight:600; color:#1e272e;"></div>
+
+    <label>Cédula</label>
+    <input type="text" id="buro-cedula" placeholder="Cédula">
+
+    <label>Pagaré (subir archivo)</label>
+    <input type="file" id="buro-pagare" accept=".pdf,.jpg,.jpeg,.png">
+
+    <label>Motivo</label>
+    <input type="text" id="buro-motivo" placeholder="Motivo del reporte">
+
+    <label>Monto que debe</label>
+    <input type="number" id="buro-monto" placeholder="0.00">
+
+    <label>Meses de atraso</label>
+    <input type="number" id="buro-meses" placeholder="Ej: 2">
+
+    <div class="modal-btns">
+      <button class="btn-cancelar" onclick="cerrarModal('modalBuro')">Cancelar</button>
+      <button class="btn-confirmar" onclick="confirmarReporteBuro()">⚠️ Reportar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DETALLE DE REPORTE A BURÓ -->
+<div class="modal-overlay" id="modalDetalleBuro">
+  <div class="modal" style="width:420px;">
+    <h3>⚠️ Detalle del reporte a buró</h3>
+    <div id="detalleBuroInfo" style="font-size:14px; line-height:1.6; margin-bottom:14px;"></div>
+    <div class="modal-btns">
+      <button class="btn-cancelar" onclick="cerrarModal('modalDetalleBuro')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const API = "https://app-zobz.onrender.com";
 
@@ -189,6 +267,315 @@ const BANCOS = {
   "Banco Pichincha": { tipo: "Cuenta de Ahorros", numero: "2202438965" }
 };
 
+// ============================================================
+//  SEGUIMIENTO DE COBRANZA (atrasados + registro de recordatorios)
+// ============================================================
+
+// Cuántos días sin movimiento (sin pagos) se consideran "atraso"
+const DIAS_ATRASO = 30;
+
+// Clave usada en localStorage para guardar el historial de recordatorios
+// enviados (se guarda en el navegador, no en el servidor).
+const LOG_RECORDATORIOS_KEY = "agro_recordatorios_log";
+
+// El _id de Mongo trae, en sus primeros 8 caracteres hexadecimales, la
+// fecha de creación del documento. Lo usamos como "fecha de la deuda"
+// cuando el cliente todavía no ha hecho ningún pago.
+function fechaCreacionDesdeId(id) {
+  if (!id || typeof id !== "string" || id.length < 8) return null;
+  const segundos = parseInt(id.substring(0, 8), 16);
+  if (isNaN(segundos)) return null;
+  return new Date(segundos * 1000);
+}
+
+// Devuelve la fecha del último movimiento de la deuda (último pago,
+// o la fecha de creación si todavía no tiene ningún pago).
+function ultimaActividad(d) {
+  let fechas = [];
+  if (d.pagos && d.pagos.length) {
+    d.pagos.forEach(p => { if (p.fecha) fechas.push(new Date(p.fecha)); });
+  }
+  const creacion = fechaCreacionDesdeId(d._id);
+  if (creacion) fechas.push(creacion);
+  if (!fechas.length) return null;
+  return new Date(Math.max(...fechas.map(f => f.getTime())));
+}
+
+// Una deuda está "atrasada" si todavía debe algo y no ha tenido
+// movimiento (pago) en los últimos DIAS_ATRASO días.
+function esAtrasada(d) {
+  const restante = d.total - (d.pagado || 0);
+  if (restante <= 0) return false;
+  const ultima = ultimaActividad(d);
+  if (!ultima) return false;
+  const dias = (Date.now() - ultima.getTime()) / (1000 * 60 * 60 * 24);
+  return dias >= DIAS_ATRASO;
+}
+
+function verAtrasados() {
+  const atrasadas = deudas.filter(esAtrasada);
+  mostrar(atrasadas, true); // true = mostrar el botón "📤 Recordar" en esta vista
+  if (!atrasadas.length) {
+    document.getElementById("infoAtrasados").innerHTML =
+      `✅ No hay deudores atrasados por ahora.`;
+    return;
+  }
+  const totalAtrasado = atrasadas.reduce((s, d) => s + (d.total - (d.pagado || 0)), 0);
+  document.getElementById("infoAtrasados").innerHTML =
+    `🔴 Mostrando ${atrasadas.length} deudor${atrasadas.length > 1 ? "es" : ""} atrasado${atrasadas.length > 1 ? "s" : ""} — total pendiente: $${totalAtrasado.toFixed(2)}`;
+}
+
+function verTodos() {
+  mostrar(deudas, false); // false = en "Ver todos" no se muestra el botón de recordatorio
+  actualizarInfoAtrasados();
+}
+
+// Muestra siempre (sin filtrar la tabla) cuántos atrasados hay, para que
+// se vea de un vistazo aunque no se haya presionado el botón.
+function actualizarInfoAtrasados() {
+  const atrasadas = deudas.filter(esAtrasada);
+  const info = document.getElementById("infoAtrasados");
+  if (!info) return;
+  if (!atrasadas.length) {
+    info.innerHTML = `✅ No hay deudores atrasados por ahora.`;
+    return;
+  }
+  const totalAtrasado = atrasadas.reduce((s, d) => s + (d.total - (d.pagado || 0)), 0);
+  info.innerHTML = `🔴 ${atrasadas.length} deudor${atrasadas.length > 1 ? "es" : ""} atrasado${atrasadas.length > 1 ? "s" : ""} — total pendiente: $${totalAtrasado.toFixed(2)}`;
+}
+
+// ---------- Registro de recordatorios (queda guardado en este navegador) ----------
+function obtenerLogRecordatorios() {
+  try { return JSON.parse(localStorage.getItem(LOG_RECORDATORIOS_KEY) || "[]"); }
+  catch { return []; }
+}
+
+function registrarRecordatorio(id, cliente, canal) {
+  try {
+    const log = obtenerLogRecordatorios();
+    log.push({ id, cliente, canal, fecha: new Date().toISOString() });
+    localStorage.setItem(LOG_RECORDATORIOS_KEY, JSON.stringify(log));
+  } catch (e) { console.log("No se pudo guardar el registro de recordatorio:", e); }
+}
+
+function textoCanal(canal) {
+  if (canal === "whatsapp") return "📱 WhatsApp";
+  if (canal === "gmail")    return "📧 Gmail";
+  if (canal && canal.includes("+")) return "📱 WhatsApp + 📧 Gmail";
+  return canal || "-";
+}
+
+// ---------- Reportes a buró (registro interno, no es una integración real) ----------
+// IMPORTANTE: esto NO reporta automáticamente a ningún buró de crédito real
+// (Equifax, DICOM, etc.) — es solo un registro interno para que quede
+// anotado qué clientes decidiste marcar como "reportados", con fecha,
+// junto con el pagaré, la cédula, el motivo, el monto y los meses de atraso.
+// Si más adelante tienes acceso a una API real de un buró, este es el
+// lugar donde se conectaría.
+const LOG_BURO_KEY = "agro_buro_log";
+
+function obtenerLogBuro() {
+  try { return JSON.parse(localStorage.getItem(LOG_BURO_KEY) || "[]"); }
+  catch { return []; }
+}
+
+function estaReportadoABuro(id) {
+  return obtenerLogBuro().some(x => x.id === id);
+}
+
+// Abre el modal para pedir cédula, pagaré (archivo), motivo, monto y meses de atraso.
+function reportarABuro(id, cliente) {
+  if (estaReportadoABuro(id)) {
+    alert(`${cliente} ya estaba marcado como reportado a buró.`);
+    return;
+  }
+  const d = deudas.find(x => x._id === id);
+  const restante = d ? (d.total - (d.pagado || 0)) : 0;
+
+  document.getElementById("buro-id").value = id;
+  document.getElementById("buro-cliente-info").innerHTML = `Cliente: <b>${cliente}</b>`;
+  document.getElementById("buro-cedula").value = d ? (d.cedula && d.cedula !== "-" ? d.cedula : "") : "";
+  document.getElementById("buro-pagare").value = "";
+  document.getElementById("buro-motivo").value = "";
+  document.getElementById("buro-monto").value = restante > 0 ? restante.toFixed(2) : "";
+  document.getElementById("buro-meses").value = "";
+
+  document.getElementById("modalBuro").classList.add("activo");
+}
+
+function leerArchivoBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("No se pudo leer el archivo"));
+    reader.readAsDataURL(file);
+  });
+}
+
+async function confirmarReporteBuro() {
+  const id      = document.getElementById("buro-id").value;
+  const d       = deudas.find(x => x._id === id);
+  const cliente = d ? d.cliente : "";
+  const cedula  = document.getElementById("buro-cedula").value.trim();
+  const motivo  = document.getElementById("buro-motivo").value.trim();
+  const monto   = Number(document.getElementById("buro-monto").value);
+  const meses   = Number(document.getElementById("buro-meses").value);
+  const fileInput = document.getElementById("buro-pagare");
+  const file    = fileInput.files[0];
+
+  if (!cedula)              return alert("Ingresa la cédula");
+  if (!file)                return alert("Debes subir el archivo del pagaré");
+  if (!motivo)              return alert("Ingresa el motivo");
+  if (!monto || isNaN(monto)) return alert("Ingresa el monto que debe");
+  if (meses === "" || isNaN(meses)) return alert("Ingresa los meses de atraso");
+
+  if (!confirm(`¿Confirmas marcar a "${cliente}" como reportado a buró de crédito?\n\nEsto solo queda anotado en tu registro interno (no envía nada a ningún buró real).`)) return;
+
+  const btnConfirmar = document.querySelector("#modalBuro .btn-confirmar");
+  if (btnConfirmar) btnConfirmar.disabled = true;
+
+  try {
+    const pagareData = await leerArchivoBase64(file);
+    const log = obtenerLogBuro();
+    log.push({
+      id, cliente, cedula, motivo,
+      monto, mesesAtraso: meses,
+      pagareNombre: file.name,
+      pagareData,
+      fecha: new Date().toISOString()
+    });
+    localStorage.setItem(LOG_BURO_KEY, JSON.stringify(log));
+
+    cerrarModal("modalBuro");
+    alert(`✅ ${cliente} fue marcado como reportado a buró.`);
+
+    // Si el registro de recordatorios está abierto, refrescarlo para
+    // que se vea el nuevo estado "Reportado".
+    if (document.getElementById("modalRegistro").classList.contains("activo")) {
+      renderRegistroRecordatorios();
+    }
+  } catch (err) {
+    alert("Error al procesar el archivo del pagaré: " + err.message);
+  } finally {
+    if (btnConfirmar) btnConfirmar.disabled = false;
+  }
+}
+
+// Muestra el detalle de un reporte a buró ya guardado (cédula, motivo,
+// monto, meses de atraso y el pagaré subido).
+function verDetalleBuro(id) {
+  const entry = obtenerLogBuro().find(x => x.id === id);
+  if (!entry) return;
+  const fecha = new Date(entry.fecha).toLocaleString("es-EC");
+  let pagareHtml = "Sin archivo";
+  if (entry.pagareData) {
+    pagareHtml = `<a href="${entry.pagareData}" download="${entry.pagareNombre || 'pagare'}" target="_blank">📎 ${entry.pagareNombre || 'Ver pagaré'}</a>`;
+  }
+  document.getElementById("detalleBuroInfo").innerHTML = `
+    <b>Cliente:</b> ${entry.cliente || "-"}<br>
+    <b>Cédula:</b> ${entry.cedula || "-"}<br>
+    <b>Motivo:</b> ${entry.motivo || "-"}<br>
+    <b>Monto que debe:</b> $${Number(entry.monto || 0).toFixed(2)}<br>
+    <b>Meses de atraso:</b> ${entry.mesesAtraso ?? "-"}<br>
+    <b>Fecha de reporte:</b> ${fecha}<br>
+    <b>Pagaré:</b> ${pagareHtml}
+  `;
+  document.getElementById("modalDetalleBuro").classList.add("activo");
+}
+
+// ---------- Modal de registro de recordatorios (misma página, ya no en pestaña nueva) ----------
+function abrirRegistroRecordatorios() {
+  renderRegistroRecordatorios();
+  document.getElementById("modalRegistro").classList.add("activo");
+}
+
+function renderRegistroRecordatorios() {
+  const log = obtenerLogRecordatorios();
+  const tbody = document.getElementById("tbodyRegistro");
+
+  if (!log.length) {
+    tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:#666;padding:24px;">Todavía no se ha enviado ningún recordatorio.</td></tr>`;
+    return;
+  }
+
+  // Más reciente primero
+  const ordenado = log.slice().sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+  tbody.innerHTML = ordenado.map(item => {
+    const f = new Date(item.fecha);
+    const fechaTxt = f.toLocaleDateString("es-EC");
+    const horaTxt  = f.toLocaleTimeString("es-EC");
+    const idEsc = String(item.id || "").replace(/'/g, "\\'");
+    const nombreEsc = String(item.cliente || "").replace(/'/g, "\\'");
+    const reportado = item.id && estaReportadoABuro(item.id);
+    const celdaBuro = reportado
+      ? `<a href="#" onclick="verDetalleBuro('${idEsc}'); return false;">⚠️ Reportado</a>`
+      : "-";
+    return `
+      <tr>
+        <td style="text-align:left;">👤 ${item.cliente || "-"}</td>
+        <td>${fechaTxt}</td>
+        <td>${horaTxt}</td>
+        <td>${textoCanal(item.canal)}</td>
+        <td>${celdaBuro}</td>
+        <td style="white-space:nowrap;">
+          <button onclick="enviarRecordatorioManual('${idEsc}')" style="background:#2980b9;color:white;border:none;padding:6px 10px;border-radius:6px;font-size:12px;cursor:pointer;margin:2px;">📤 Enviar</button>
+          <button onclick="reportarABuro('${idEsc}','${nombreEsc}')" style="background:#c0392b;color:white;border:none;padding:6px 10px;border-radius:6px;font-size:12px;cursor:pointer;margin:2px;">⚠️ Reportar</button>
+        </td>
+      </tr>`;
+  }).join("");
+}
+
+function borrarHistorialRecordatorios() {
+  if (!confirm('¿Borrar todo el historial de recordatorios? Esta acción no se puede deshacer.')) return;
+  limpiarLogRecordatorios();
+  renderRegistroRecordatorios();
+}
+
+function limpiarLogRecordatorios() {
+  localStorage.removeItem(LOG_RECORDATORIOS_KEY);
+}
+
+// Botón "📤 Enviar recordatorio" de cada fila: manda por WhatsApp y/o
+// Gmail (los canales que el cliente tenga guardados) y lo deja anotado
+// en el registro.
+function enviarRecordatorioManual(id) {
+  const d = deudas.find(x => x._id === id);
+  if (!d) return alert("Deudor no encontrado");
+
+  const restante = d.total - (d.pagado || 0);
+  const canales = [];
+
+  if (d.celular) {
+    const mensaje = encodeURIComponent(`Hola ${d.cliente}, le saluda Agro Naranjito.\n\nLe recordamos que mantiene una deuda pendiente de $${restante.toFixed(2)}.\n\nGracias por su atención.`);
+    const numero  = d.celular.replace(/^0/, "593");
+    window.open(`https://wa.me/${numero}?text=${mensaje}`, "_blank");
+    canales.push("whatsapp");
+  }
+
+  if (d.correo) {
+    const asunto = encodeURIComponent("Recordatorio de deuda pendiente - Agro Naranjito");
+    const cuerpo = encodeURIComponent(`Hola ${d.cliente},\n\nLe saluda Agro Naranjito.\n\nLe recordamos que mantiene una deuda pendiente de $${restante.toFixed(2)}.\n\nGracias por su atención.`);
+    // Pequeño retraso para que no se bloqueen las ventanas emergentes
+    // si también se abrió WhatsApp justo antes.
+    setTimeout(() => {
+      window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(d.correo)}&su=${asunto}&body=${cuerpo}`, "_blank");
+    }, canales.length ? 400 : 0);
+    canales.push("gmail");
+  }
+
+  if (!canales.length) {
+    alert(`${d.cliente} no tiene celular ni correo registrado. Agrégalo editando la deuda (✏️) para poder enviarle recordatorios.`);
+    return;
+  }
+
+  registrarRecordatorio(d._id, d.cliente, canales.join("+"));
+
+  // Si el registro está abierto, refrescarlo al instante.
+  if (document.getElementById("modalRegistro").classList.contains("activo")) {
+    renderRegistroRecordatorios();
+  }
+}
+
 // ================= CERRAR MODAL =================
 function cerrarModal(id) {
   document.getElementById(id).classList.remove("activo");
@@ -198,13 +585,14 @@ function cerrarModal(id) {
 async function cargar() {
   const res = await fetch(API + '/deudas');
   deudas = await res.json();
-  mostrar(deudas);
+  mostrar(deudas, false); // "Ver todos" (vista normal) no muestra el botón de recordatorio
+  actualizarInfoAtrasados();
 }
 
 // ================ BUSCAR ==================
 function buscarCliente() {
   let texto = document.getElementById("buscar").value.toLowerCase().trim();
-  if (!texto) { mostrar(deudas); return; }
+  if (!texto) { mostrar(deudas, false); return; }
   let filtradas = deudas.filter(d => {
     let nombre  = String(d.cliente || "").toLowerCase().trim();
     let cedula  = String(d.cedula  || "").toLowerCase().trim();
@@ -372,7 +760,7 @@ async function confirmarEditar() {
 }
 
 // ================= MOSTRAR =================
-function mostrar(lista) {
+function mostrar(lista, mostrarBotonRecordatorio) {
   let tabla = document.getElementById("tabla");
   let html  = "";
   lista.forEach(d => {
@@ -395,21 +783,27 @@ function mostrar(lista) {
     // --- Recordatorio por WhatsApp ---
     let mensaje   = encodeURIComponent(`Hola ${d.cliente}, le saluda Agro Naranjito.\n\nLe recordamos que mantiene una deuda pendiente de $${restante.toFixed(2)}.\n\nGracias por su atención.`);
     let numero    = (d.celular || "").replace(/^0/, "593");
+    let nombreEsc = String(d.cliente || "").replace(/'/g, "\\'").replace(/"/g, "&quot;");
     let whatsappBtn = d.celular
-      ? `<a href="https://wa.me/${numero}?text=${mensaje}" target="_blank" style="text-decoration:none;" title="Enviar recordatorio por WhatsApp">📱</a>`
+      ? `<a href="https://wa.me/${numero}?text=${mensaje}" target="_blank" style="text-decoration:none;" title="Enviar recordatorio por WhatsApp" onclick="registrarRecordatorio('${d._id}','${nombreEsc}','whatsapp')">📱</a>`
       : "";
 
     // --- Recordatorio por Gmail (correo NO se muestra en la tabla, solo se usa aquí) ---
     let asuntoCorreo = encodeURIComponent(`Recordatorio de deuda pendiente - Agro Naranjito`);
     let cuerpoCorreo = encodeURIComponent(`Hola ${d.cliente},\n\nLe saluda Agro Naranjito.\n\nLe recordamos que mantiene una deuda pendiente de $${restante.toFixed(2)}.\n\nGracias por su atención.`);
     let gmailBtn = d.correo
-      ? `<a href="https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(d.correo)}&su=${asuntoCorreo}&body=${cuerpoCorreo}" target="_blank" style="text-decoration:none;" title="Enviar recordatorio por Gmail">📧</a>`
+      ? `<a href="https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(d.correo)}&su=${asuntoCorreo}&body=${cuerpoCorreo}" target="_blank" style="text-decoration:none;" title="Enviar recordatorio por Gmail" onclick="registrarRecordatorio('${d._id}','${nombreEsc}','gmail')">📧</a>`
       : "";
 
+    let botonRecordar = mostrarBotonRecordatorio
+      ? `<button onclick="enviarRecordatorioManual('${d._id}')" title="Enviar recordatorio" style="background:#2980b9;">📤 Recordar</button>`
+      : "";
+
+    let badgeAtrasado = (restante > 0 && esAtrasada(d)) ? `<br><span class="badge-acum" style="background:#f8d7da;color:#721c24;border-color:#f5c6cb;">🔴 Atrasado</span>` : "";
     let badgeProds = cantProds > 1 ? `<br><span class="badge-acum">📦 ${cantProds} productos</span>` : "";
     html += `
       <tr>
-        <td>${d.cliente}${badgeProds}</td>
+        <td>${d.cliente}${badgeProds}${badgeAtrasado}</td>
         <td>${d.cedula || "-"}</td>
         <td>
           ${d.celular || "-"}
@@ -425,6 +819,7 @@ function mostrar(lista) {
           <button onclick="editar('${d._id}')">✏️</button>
           <button onclick="toggleDetalle('${d._id}')">📄</button>
           <button onclick="imprimirRecibo('${d._id}')" title="Imprimir recibo">🖨</button>
+          ${botonRecordar}
           <button onclick="eliminar('${d._id}')">🗑</button>
         </td>
       </tr>
@@ -486,9 +881,6 @@ function actualizarInfoBanco() {
 }
 
 // ================= CONFIRMAR ABONO =================
-// ✅ CORRECCIÓN: se eliminó la llamada a registrarTransferenciaEnCaja()
-// El backend (/deudas/pagar) ya registra el movimiento en caja internamente,
-// por lo que llamar también a /caja/transferencia generaba un duplicado.
 async function confirmarAbono() {
   let monto = Number(document.getElementById("modal-monto").value);
   if (!monto || monto <= 0) return alert("Monto inválido");
@@ -508,7 +900,6 @@ async function confirmarAbono() {
   const btnConfirmar = document.querySelector(".btn-confirmar");
   if (btnConfirmar) btnConfirmar.disabled = true;
 
-  // Guardamos el correo del cliente ANTES del fetch (por si el backend no lo devuelve en la respuesta)
   let clienteLocal  = deudas.find(x => x._id === deudaIdActual);
   let correoCliente = clienteLocal ? (clienteLocal.correo || "") : "";
 
@@ -519,7 +910,7 @@ async function confirmarAbono() {
       body: JSON.stringify({
         id:         deudaIdActual,
         monto,
-        tipoPago:   tipoPagoActual,   // ✅ el backend ahora lee tipoPago correctamente
+        tipoPago:   tipoPagoActual,
         banco,
         comprobante,
         remitente
@@ -532,19 +923,10 @@ async function confirmarAbono() {
       return alert(data.error);
     }
 
-    // ✅ NO se llama a /caja/transferencia aquí.
-    // El endpoint /deudas/pagar en el backend ya lo hace internamente.
-
     cerrarModal("modalOverlay");
 
-    // 1) Primero se abre el correo (no bloquea nada)
     enviarComprobanteCorreo(data, correoCliente, monto, tipoPagoActual);
 
-    // 2) Luego, con un pequeño retraso, se abre la ventana de impresión.
-    //    Esto evita que el navegador se "trabe": si se abren las dos
-    //    ventanas al mismo tiempo y una de ellas dispara el diálogo de
-    //    impresión (que es bloqueante), la del correo puede quedarse
-    //    congelada esperando su turno.
     setTimeout(() => {
       abrirRecibo(data, monto, tipoPagoActual, banco, comprobante, remitente);
     }, 400);
@@ -560,9 +942,6 @@ async function confirmarAbono() {
 }
 
 // ================= ENVIAR COMPROBANTE DE ABONO POR CORREO =================
-// Nota: por seguridad del navegador, JS no puede "enviar" un correo solo;
-// esto abre Gmail ya listo (destinatario, asunto y mensaje) para que
-// solo se presione "Enviar". Si el cliente no tiene correo guardado, no hace nada.
 function enviarComprobanteCorreo(d, correo, monto, tipoPago) {
   if (!correo) return;
 
@@ -594,7 +973,6 @@ Agro Naranjito`
 }
 
 // ================= IMPRIMIR RECIBO DESDE LA TABLA =================
-// Botón 🖨 en cada deudor: reimprime su recibo actual sin necesidad de un abono nuevo.
 function imprimirRecibo(id) {
   let d = deudas.find(x => x._id === id);
   if (!d) return alert("Deudor no encontrado");
@@ -665,12 +1043,8 @@ function abrirRecibo(d, monto, tipoPago, banco, comprobante, remitente) {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  /* Sin flex ni grid: muchas apps/impresoras térmicas de 80mm no las
-     interpretan bien y desalinean el recibo. Todo se maneja con
-     bloques normales y tablas simples, que sí son 100% compatibles. */
   body { padding: 2mm 0; }
   table { width:100%; border-collapse:collapse; }
-  /* Truco para que la térmica marque más negro: se duplica el trazo del texto */
   .recibo, .recibo * {
     text-shadow: 0.3px 0 0 currentColor, -0.3px 0 0 currentColor, 0 0.3px 0 currentColor, 0 -0.3px 0 currentColor;
   }
@@ -747,8 +1121,6 @@ function abrirRecibo(d, monto, tipoPago, banco, comprobante, remitente) {
 }
 
 // ================= RECIBO GENERAL (SIN ABONO NUEVO) =================
-// Usado por el botón 🖨 de la tabla: muestra el estado actual de la deuda
-// (productos, historial de pagos y saldo) sin registrar ningún abono nuevo.
 function abrirReciboGeneral(d) {
   let win = window.open("", "", "width=380,height=700");
 
@@ -801,12 +1173,8 @@ function abrirReciboGeneral(d) {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
   }
-  /* Sin flex ni grid: muchas apps/impresoras térmicas de 80mm no las
-     interpretan bien y desalinean el recibo. Todo se maneja con
-     bloques normales y tablas simples, que sí son 100% compatibles. */
   body { padding: 2mm 0; }
   table { width:100%; border-collapse:collapse; }
-  /* Truco para que la térmica marque más negro: se duplica el trazo del texto */
   .recibo, .recibo * {
     text-shadow: 0.3px 0 0 currentColor, -0.3px 0 0 currentColor, 0 0.3px 0 currentColor, 0 -0.3px 0 currentColor;
   }

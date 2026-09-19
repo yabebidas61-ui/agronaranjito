@@ -1,6 +1,7 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
+  <meta charset="UTF-8">
   <title>Dashboard Inteligente</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -68,7 +69,7 @@
     }
     .filtro-rango button:hover { background: #1a6a9a; }
 
-    /* MODAL */
+    /* MODAL CONTRASEÑA */
     #modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 9999; justify-content: center; align-items: center; }
     #modal-overlay.activo { display: flex; }
     #modal-box { background: white; padding: 30px; border-radius: 14px; box-shadow: 0 8px 32px rgba(0,0,0,0.25); width: 320px; text-align: center; }
@@ -84,12 +85,31 @@
     #btn-cancelar { background: #7f8c8d; }
     #btn-cancelar:hover { background: #636e72; }
 
-    /* OVERLAY de "generando factura..." */
-    #overlay-generando {
-      display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55);
-      z-index: 10000; justify-content: center; align-items: center; color: white; font-size: 15px; font-weight: bold;
-    }
-    #overlay-generando.activo { display: flex; }
+    /* MODAL ENVIAR FACTURA (Gmail / WhatsApp) */
+    #modal-envio { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 9999; justify-content: center; align-items: center; padding: 10px; box-sizing: border-box; }
+    #modal-envio.activo { display: flex; }
+    #envio-box { background: white; border-radius: 14px; padding: 22px; width: 100%; max-width: 460px; max-height: 94vh; overflow-y: auto; box-shadow: 0 8px 32px rgba(0,0,0,0.25); box-sizing: border-box; }
+    #envio-box h3 { margin: 0 0 2px; font-size: 20px; color: #1e272e; }
+    #envio-cliente { font-size: 13px; color: #666; margin: 0 0 12px; }
+    #envio-preview { border: 1px solid #e5e5e5; border-radius: 10px; max-height: 240px; overflow: auto; margin-bottom: 12px; background: #fafafa; }
+    #envio-preview .factura-bonita { margin: 0 auto; }
+    .envio-campo label { display: block; font-size: 12px; color: #666; margin: 8px 0 3px; }
+    .envio-campo input { width: 100%; padding: 9px; border: 1px solid #ccc; border-radius: 8px; font-size: 14px; box-sizing: border-box; }
+    .envio-campo input:focus { outline: none; border-color: #ff3f34; }
+    #envio-estado { font-size: 12px; color: #888; margin: 10px 0 0; min-height: 16px; }
+    .envio-btns { display: flex; gap: 10px; margin-top: 12px; }
+    .envio-btns button { flex: 1; margin-top: 0; padding: 13px 10px; font-size: 15px; font-weight: bold; border-radius: 10px; }
+    #btn-envio-gmail { background: #ea4335; }
+    #btn-envio-gmail:hover { background: #c5372b; }
+    #btn-envio-wa { background: #25d366; }
+    #btn-envio-wa:hover { background: #1ebe5a; }
+    #btn-envio-cerrar { width: 100%; background: #7f8c8d; margin-top: 8px; }
+    #btn-envio-cerrar:hover { background: #636e72; }
+
+    /* AVISO (toast) */
+    #toast { display: none; position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: #1e272e; color: white; padding: 12px 18px; border-radius: 10px; font-size: 14px; z-index: 10001; max-width: 90vw; box-shadow: 0 6px 20px rgba(0,0,0,0.3); text-align: center; line-height: 1.4; }
+    #toast.error { background: #c0392b; }
+    #toast.activo { display: block; }
   </style>
 </head>
 <body>
@@ -108,8 +128,28 @@
   </div>
 </div>
 
-<!-- OVERLAY GENERANDO FACTURA -->
-<div id="overlay-generando">📤 Generando factura...</div>
+<!-- MODAL ENVIAR FACTURA -->
+<div id="modal-envio">
+  <div id="envio-box">
+    <h3>📤 Enviar factura</h3>
+    <p id="envio-cliente"></p>
+    <div id="envio-preview"></div>
+    <div class="envio-campo">
+      <label for="envio-correo">📧 Correo del cliente (Gmail)</label>
+      <input id="envio-correo" type="email" placeholder="cliente@correo.com">
+      <label for="envio-celular">📱 Celular del cliente (WhatsApp)</label>
+      <input id="envio-celular" type="tel" placeholder="0991234567">
+    </div>
+    <div id="envio-estado"></div>
+    <div class="envio-btns">
+      <button id="btn-envio-gmail" onclick="enviarFactura('gmail')">✉️ Gmail</button>
+      <button id="btn-envio-wa" onclick="enviarFactura('whatsapp')">💬 WhatsApp</button>
+    </div>
+    <button id="btn-envio-cerrar" onclick="cerrarEnvio()">Cancelar</button>
+  </div>
+</div>
+
+<div id="toast"></div>
 
 <div class="sidebar">
   <h2>NEXUS</h2>
@@ -126,8 +166,9 @@
   <div class="container">
 
     <!-- KPIs -->
-    <div class="grid">
-      <div class="card"><h4>💰 Total</h4><div class="big" id="total">$0</div></div>
+    <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));">
+      <div class="card"><h4>💰 Total vendido</h4><div class="big" id="total">$0</div></div>
+      <div class="card"><h4>📈 Ganancia</h4><div class="big" id="ganancia" style="color:#27ae60;">-</div><div id="gananciaNota" style="font-size:11px;color:#999;margin-top:3px;"></div></div>
       <div class="card"><h4>📄 Efectivo</h4><div class="big" id="efectivo">0</div></div>
       <div class="card"><h4>📄 Crédito</h4><div class="big" id="credito">0</div></div>
       <div class="card"><h4>👤 Clientes</h4><div class="big" id="clientes">0</div></div>
@@ -227,6 +268,9 @@ const NEGOCIO = {
   telefono: ""
 };
 
+// QR de la tienda (mismo que en index.html)
+const QR_TIENDA_URL = "https://yabebidas61-ui.github.io/analisis-agro/";
+
 // Cédula genérica que se usa para ventas sin cliente identificado
 // ("Consumidor Final"). Se usa para excluirlo de rankings de clientes.
 const CEDULA_CONSUMIDOR_FINAL = "9999999999999";
@@ -274,7 +318,17 @@ function badgeTipoPago(tipo) {
   return "";
 }
 
-// ===== MODAL =====
+// ===== AVISO (toast) =====
+let _toastTimer = null;
+function mostrarToast(msg, esError = false, ms = 8000) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.className = "activo" + (esError ? " error" : "");
+  clearTimeout(_toastTimer);
+  _toastTimer = setTimeout(() => { t.className = ""; }, ms);
+}
+
+// ===== MODAL CONTRASEÑA =====
 let _accionPendiente = null;
 function abrirModal(desc, accion) {
   _accionPendiente = accion;
@@ -303,6 +357,9 @@ function confirmarModal() {
 document.getElementById("modal-password").addEventListener("keydown", e => {
   if (e.key === "Enter")  confirmarModal();
   if (e.key === "Escape") cerrarModal();
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape") cerrarEnvio();
 });
 
 // ===== UTILIDADES FECHA =====
@@ -507,12 +564,70 @@ function actualizarClienteTop() {
   el.innerText = `${resultado.cliente} ($${resultado.valor.toFixed(2)})`;
 }
 
+// ===== GANANCIA TOTAL =====
+// Intenta obtener la ganancia en este orden:
+//  1) Si el servidor ya manda un total de ganancia en /analisis, lo usa.
+//  2) Si no, la calcula con las ventas: total de la venta - costo de sus productos
+//     (necesita que cada producto vendido traiga su costo: precioCompra / costo).
+//  3) Si no hay forma de saber el costo, muestra "-" y lo avisa debajo.
+function numeroONull(x) {
+  const n = Number(x);
+  return (x !== undefined && x !== null && x !== "" && Number.isFinite(n)) ? n : null;
+}
+
+function calcularGananciaTotal(data, listaVentas) {
+  // 1) El servidor ya la manda
+  const claves = ["gananciaTotal", "totalGanancia", "gananciaGeneral", "ganancia", "ganancias", "utilidad"];
+  for (const k of claves) {
+    const n = numeroONull(data[k]);
+    if (n !== null) return { valor: n, nota: "" };
+  }
+
+  // 2) Calcular desde las ventas
+  let ganancia = 0, ventasConCosto = 0, ventasSinCosto = 0;
+  (listaVentas || []).forEach(v => {
+    const prods = Array.isArray(v.productos) ? v.productos : [];
+    if (!prods.length) return;
+    let costoVenta = 0, completo = true;
+    prods.forEach(p => {
+      const c = [p.precioCompra, p.costo, p.precioCosto, p.costoUnitario, p.precioCompraUnitario]
+        .map(numeroONull).find(x => x !== null);
+      if (c === undefined || c === null) { completo = false; return; }
+      costoVenta += c * (Number(p.cantidad) || 0);
+    });
+    if (!completo) { ventasSinCosto++; return; }
+    const totalVenta = numeroONull(v.total) ?? 0;
+    ganancia += totalVenta - costoVenta;
+    ventasConCosto++;
+  });
+
+  if (ventasConCosto === 0) return null;
+  const nota = ventasSinCosto > 0 ? `(sin contar ${ventasSinCosto} ventas sin costo)` : "";
+  return { valor: ganancia, nota };
+}
+
+function actualizarGanancia(data) {
+  const el   = document.getElementById("ganancia");
+  const nota = document.getElementById("gananciaNota");
+  const r = calcularGananciaTotal(data, ventas);
+  if (!r) {
+    el.innerText = "-";
+    nota.innerText = "El servidor no envía el costo";
+    console.log("Claves recibidas de /analisis:", Object.keys(data), "| Ejemplo de producto vendido:", (ventas[0] && ventas[0].productos && ventas[0].productos[0]) || null);
+    return;
+  }
+  el.innerText = (r.valor < 0 ? "-$" : "$") + Math.abs(r.valor).toFixed(2);
+  el.style.color = r.valor < 0 ? "#e74c3c" : "#27ae60";
+  nota.innerText = r.nota;
+}
+
 // ===== CARGAR =====
 async function cargar() {
   const res  = await fetch(API + "/analisis");
   const data = await res.json();
   ventas = data.ventas || [];
 
+  actualizarGanancia(data);
   document.getElementById("total").innerText    = "$" + (data.totalGeneral || 0).toFixed(2);
   document.getElementById("efectivo").innerText = data.efectivo || 0;
   document.getElementById("credito").innerText  = data.credito  || 0;
@@ -610,13 +725,43 @@ function calcularDatosVenta(v) {
   };
 }
 
-// ===== CONSTRUIR TICKET (mismo diseño que el ticket de Venta / index.html) =====
-// Recibe una venta guardada (objeto v) y arma el HTML del comprobante estilo
-// ticket térmico (logo AGRO NARANJITO, RUC, NOTA DE VENTA, etc.)
-// NOTA: se usan TABLAS en vez de flexbox para las filas de productos y el
-// total, porque muchas apps/impresoras térmicas de 80mm (RawBT, etc.) no
-// interpretan bien flexbox y desalinean el ticket.
-function construirTicketDesdeVenta(v) {
+/* ══════════════════════════════════════════════════════════════
+   LOGO AGRO NARANJITO (SVG)
+   - color: color del dibujo y del texto
+   - corte: color de las rayitas del tallo (debe ser el color del fondo)
+══════════════════════════════════════════════════════════════ */
+function logoSVG(color, corte, atributos) {
+  return `
+      <svg viewBox="0 0 680 260" ${atributos} xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${NEGOCIO.nombreComercial}">
+        <g fill="none" stroke="${color}">
+          <rect x="332" y="35" width="16" height="155" rx="8" fill="${color}" stroke="${color}" stroke-width="2"/>
+          <line x1="332" y1="75" x2="348" y2="75" stroke="${corte}" stroke-width="2"/>
+          <line x1="332" y1="115" x2="348" y2="115" stroke="${corte}" stroke-width="2"/>
+          <line x1="332" y1="155" x2="348" y2="155" stroke="${corte}" stroke-width="2"/>
+          <path d="M340 40 Q 300 20 262 34" stroke-width="9" stroke-linecap="round"/>
+          <path d="M340 40 Q 380 20 418 34" stroke-width="9" stroke-linecap="round"/>
+          <path d="M340 55 Q 315 40 292 50" stroke-width="7" stroke-linecap="round"/>
+        </g>
+        <text x="340" y="105" text-anchor="middle" font-family="Arial, sans-serif" font-weight="800" font-size="66" letter-spacing="3" fill="${color}">AGRO</text>
+        <text x="340" y="168" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="45" letter-spacing="5" fill="${color}">NARANJITO</text>
+        <rect x="140" y="188" width="400" height="14" rx="7" fill="${color}" stroke="${color}" stroke-width="2"/>
+        <line x1="220" y1="188" x2="220" y2="202" stroke="${corte}" stroke-width="2"/>
+        <line x1="300" y1="188" x2="300" y2="202" stroke="${corte}" stroke-width="2"/>
+        <line x1="380" y1="188" x2="380" y2="202" stroke="${corte}" stroke-width="2"/>
+        <line x1="460" y1="188" x2="460" y2="202" stroke="${corte}" stroke-width="2"/>
+        <g fill="none" stroke="${color}">
+          <path d="M150 190 Q 110 175 100 140" stroke-width="9" stroke-linecap="round"/>
+          <path d="M150 190 Q 120 205 108 225" stroke-width="7" stroke-linecap="round"/>
+          <path d="M530 190 Q 570 175 580 140" stroke-width="9" stroke-linecap="round"/>
+          <path d="M530 190 Q 560 205 572 225" stroke-width="7" stroke-linecap="round"/>
+        </g>
+      </svg>`;
+}
+
+// ===== CONSTRUIR TICKET (IDÉNTICO al ticket de Venta / index.html) =====
+// Misma estructura (filas .fila / .tot con flex), mismos tamaños y mismo QR
+// que construirTicket() de index.html. Se imprime con el mismo CSS (TICKET_CSS).
+function construirTicketDesdeVenta(v, conQR = true) {
   const dv = calcularDatosVenta(v);
   const { cliente, cedulaMostrar, productosArr, subtotal, pct, descuentoMonto,
           tasaPct, montoInteres, meses, totalFinal, pago, vuelto, bancoNombre,
@@ -624,30 +769,7 @@ function construirTicketDesdeVenta(v) {
 
   let html = `
     <div style="text-align:center;margin-bottom:4px">
-      <svg viewBox="0 0 680 260" style="width:100%;max-width:150px" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="${NEGOCIO.nombreComercial}">
-        <g fill="none" stroke="#000000">
-          <rect x="332" y="35" width="16" height="155" rx="8" fill="#000000" stroke="#000000" stroke-width="2"/>
-          <line x1="332" y1="75" x2="348" y2="75" stroke="#ffffff" stroke-width="2"/>
-          <line x1="332" y1="115" x2="348" y2="115" stroke="#ffffff" stroke-width="2"/>
-          <line x1="332" y1="155" x2="348" y2="155" stroke="#ffffff" stroke-width="2"/>
-          <path d="M340 40 Q 300 20 262 34" stroke-width="9" stroke-linecap="round"/>
-          <path d="M340 40 Q 380 20 418 34" stroke-width="9" stroke-linecap="round"/>
-          <path d="M340 55 Q 315 40 292 50" stroke-width="7" stroke-linecap="round"/>
-        </g>
-        <text x="340" y="105" text-anchor="middle" font-family="Arial, sans-serif" font-weight="800" font-size="66" letter-spacing="3" fill="#000000">AGRO</text>
-        <text x="340" y="168" text-anchor="middle" font-family="Arial, sans-serif" font-weight="700" font-size="45" letter-spacing="5" fill="#000000">NARANJITO</text>
-        <rect x="140" y="188" width="400" height="14" rx="7" fill="#000000" stroke="#000000" stroke-width="2"/>
-        <line x1="220" y1="188" x2="220" y2="202" stroke="#ffffff" stroke-width="2"/>
-        <line x1="300" y1="188" x2="300" y2="202" stroke="#ffffff" stroke-width="2"/>
-        <line x1="380" y1="188" x2="380" y2="202" stroke="#ffffff" stroke-width="2"/>
-        <line x1="460" y1="188" x2="460" y2="202" stroke="#ffffff" stroke-width="2"/>
-        <g fill="none" stroke="#000000">
-          <path d="M150 190 Q 110 175 100 140" stroke-width="9" stroke-linecap="round"/>
-          <path d="M150 190 Q 120 205 108 225" stroke-width="7" stroke-linecap="round"/>
-          <path d="M530 190 Q 570 175 580 140" stroke-width="9" stroke-linecap="round"/>
-          <path d="M530 190 Q 560 205 572 225" stroke-width="7" stroke-linecap="round"/>
-        </g>
-      </svg>
+      ${logoSVG("#000000", "#ffffff", 'style="width:100%;max-width:140px"')}
     </div>
     <div class="sub">RUC: ${NEGOCIO.ruc}</div>
     <div class="sub">${NEGOCIO.direccionEstablecimiento}</div>
@@ -658,109 +780,119 @@ function construirTicketDesdeVenta(v) {
     <div class="sub">N°: ${numComprobante}</div>
     <div class="sub">${fecha}</div>
     <hr>
-    <p><b>Cliente:</b> ${cliente}</p>
+    <p><b>Cliente:</b> ${cliente || "-"}</p>
     <p><b>Cédula/RUC:</b> ${cedulaMostrar}</p>
     <hr>
-    <table class="tabla-prod"><tbody>
   `;
   productosArr.forEach(p => {
     const cantidad = p.cantidad || 0;
     const sub = (p.subtotal !== undefined && p.subtotal !== null) ? Number(p.subtotal) : Number(p.precio || 0) * cantidad;
-    html += `<tr><td class="nom">${p.nombre || "-"} x${cantidad}</td><td class="pre">$${sub.toFixed(2)}</td></tr>`;
+    html += `<div class="fila"><span class="nom">${p.nombre || "-"} x${cantidad}</span><span class="pre">$${sub.toFixed(2)}</span></div>`;
   });
-  html += `</tbody></table>`;
   html += `<hr><p>Subtotal: $${subtotal.toFixed(2)}</p>`;
   if (pct > 0) html += `<p>Descuento (${pct}%): -$${descuentoMonto.toFixed(2)}</p>`;
   if (tipo === "credito") {
     html += `<p>Interés (${tasaPct}%): $${montoInteres.toFixed(2)}</p>`;
     html += `<p>Meses: ${meses}</p>`;
   }
-  html += `<hr><table class="tabla-tot"><tr><td class="lbl">TOTAL</td><td class="val">$${totalFinal.toFixed(2)}</td></tr></table><hr>`;
+  html += `<hr><div class="tot"><span>TOTAL</span><span>$${totalFinal.toFixed(2)}</span></div><hr>`;
   if (tipo === "efectivo") {
     html += `<p>Pago: $${pago.toFixed(2)}</p><p>Vuelto: $${vuelto.toFixed(2)}</p>`;
   }
   if (tipo === "transferencia") {
     html += `<p>Banco: ${bancoNombre}</p><p>Cuenta: ${bancoCuenta}</p><p>Comprobante: ${comprobante}</p>`;
   }
-  html += `<p style="font-size:12px;color:#000;margin-top:4px">Pago: ${tipo}</p>`;
-  html += `<div class="pie">Este documento es un comprobante interno de venta.<br>¡Gracias por su compra! Vuelva pronto 😊</div>`;
+  html += `<p style="font-size:12px;color:#000;font-weight:800;margin-top:4px">Pago: ${tipo}</p>`;
+
+  if (conQR) {
+    const qrImgSrc = `https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(QR_TIENDA_URL)}`;
+    html += `
+    <hr>
+    <div style="text-align:center;margin-top:6px">
+      <p style="margin:0 0 3px;font-weight:800;font-size:12px;letter-spacing:1px">TIENDA</p>
+      <img src="${qrImgSrc}" style="width:75px;height:75px;max-width:100%" alt="QR tienda">
+    </div>
+  `;
+  }
+
+  html += `<div class="pie">Este documento es un comprobante interno de venta.<br>¡Gracias por su compra! Vuelva pronto </div>`;
   return html;
 }
 
-// CSS del ticket térmico (mismo estilo visual que el #ticketPrint de index.html,
-// pero sin flexbox: usa tablas para que cuadre bien en facturadores de 80mm)
-//
-// FIX ANCHO: la mayoría de impresoras térmicas "de 80mm" solo tienen ~72mm
-// de área imprimible real (el resto es margen mecánico del cabezal/rodillo).
-// Antes el contenido usaba los 80mm completos, así que el navegador/driver
-// le sumaba su propio margen encima y el lado derecho se cortaba. Ahora el
-// tamaño de PÁGINA sigue siendo 80mm (para que el rollo corte bien), pero
-// el CONTENIDO se limita a 72mm y se centra, dejando colchón a los lados.
+// CSS del ticket: COPIA EXACTA de los estilos de impresión de index.html
+// (#ticketPrint, @page 80mm con margen 3mm, filas con flex). Así el ticket
+// sale con el mismo ancho y la misma alineación que al facturar en Venta.
 const TICKET_CSS = `
-  @page { size: 80mm auto; margin: 0; }
-  * { box-sizing: border-box; margin:0; padding:0; }
-  html, body {
-    width: 80mm;
-    font-family: Arial, sans-serif;
-    font-size: 14px;
-    color: #000;
-    font-weight: 600;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
+  @page { size: 80mm auto; margin: 3mm; }
+  html, body { margin: 0; padding: 0; background: #fff; }
+  #ticketPrint {
+    display: block; font-family: Arial, sans-serif; width: 80mm;
+    font-size: 13px; color: #000; box-sizing: border-box; font-weight: 700;
   }
-  body {
-    width: 72mm;
-    margin: 0 auto;
-    padding: 2mm 0;
-  }
-  table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-  h2 { text-align: center; margin: 4px 0; font-size: 17px; font-weight: 900; }
-  .sub { text-align: center; font-size: 13px; color: #000; margin: 0 0 4px; font-weight: 700; }
-  p { margin: 3px 0; font-size: 14px; word-wrap: break-word; }
-  hr { border: none; border-top: 2px dashed #000; margin: 5px 0; }
-  /* Anchos FIJOS e IGUALES en ambas tablas para que las columnas queden alineadas */
-  .tabla-prod .nom, .tabla-tot .lbl { width: 62%; text-align: left; }
-  .tabla-prod .pre, .tabla-tot .val { width: 38%; text-align: right; }
-  .tabla-prod td { padding: 2px 0; font-size: 14px; word-wrap: break-word; overflow-wrap: break-word; }
-  .tabla-prod .pre { font-weight: 900; padding-left: 4px; white-space: nowrap; }
-  .tabla-tot td { font-size: 17px; font-weight: 900; padding: 4px 0; }
-  .pie { text-align: center; font-size: 12px; color: #000; margin-top: 8px; font-weight: 700; word-wrap: break-word; }
-  svg { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #ticketPrint svg { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #ticketPrint h2    { text-align: center; margin: 2px 0; font-size: 15px; font-weight: 900; color: #000; }
+  #ticketPrint .sub  { text-align: center; font-size: 12px; color: #000; margin: 0 0 2px; font-weight: 800; }
+  #ticketPrint p     { margin: 2px 0; font-size: 13px; color: #000; font-weight: 700; }
+  #ticketPrint b     { color: #000; font-weight: 900; }
+  #ticketPrint hr    { border: none; border-top: 2px dashed #000; margin: 4px 0; }
+  #ticketPrint .fila { display: flex; justify-content: space-between; margin: 2px 0; font-size: 13px; color: #000; font-weight: 700; }
+  #ticketPrint .nom  { flex: 1; padding-right: 4px; }
+  #ticketPrint .pre  { white-space: nowrap; font-weight: 900; }
+  #ticketPrint .tot  { display: flex; justify-content: space-between; font-size: 16px; font-weight: 900; margin: 3px 0; color: #000; }
+  #ticketPrint .pie  { text-align: center; font-size: 11px; color: #000; margin-top: 5px; font-weight: 800; }
 `;
 
-// ===== IMPRIMIR FACTURA DE UNA VENTA =====
-// Abre una ventana nueva con el mismo diseño de ticket que se usa al facturar
-// en Venta (index.html) y lanza el diálogo de impresión automáticamente.
-function imprimirFactura(ventaId) {
-  const v = ventas.find(x => extraerId(x._id) === ventaId);
-  if (!v) { alert("No se encontró esta venta"); return; }
+// Script de la ventana de impresión: espera a que cargue el QR (imagen externa)
+// y recién ahí imprime, para que no salga en blanco. Respaldo a los 2.5 s.
+const PRINT_SCRIPT = `<script>
+window.addEventListener("load", function () {
+  var impreso = false;
+  function imprimir() { if (impreso) return; impreso = true; window.print(); }
+  var pendientes = Array.prototype.slice.call(document.images).filter(function (i) { return !i.complete; });
+  if (!pendientes.length) { imprimir(); return; }
+  var faltan = pendientes.length;
+  function listo() { faltan--; if (faltan <= 0) imprimir(); }
+  pendientes.forEach(function (i) { i.addEventListener("load", listo); i.addEventListener("error", listo); });
+  setTimeout(imprimir, 2500);
+});
+<\/script>`;
 
-  const ticketHTML = construirTicketDesdeVenta(v);
-
-  const ventana = window.open("", "_blank", "width=400,height=650");
-  if (!ventana) { alert("El navegador bloqueó la ventana de impresión. Permite las ventanas emergentes para este sitio."); return; }
-
-  ventana.document.write(`
-    <!DOCTYPE html>
+function abrirVentanaImpresion(titulo, cuerpoHTML, cssExtra = "", ancho = 400, alto = 650) {
+  const ventana = window.open("", "_blank", `width=${ancho},height=${alto}`);
+  if (!ventana) {
+    alert("El navegador bloqueó la ventana de impresión. Permite las ventanas emergentes para este sitio.");
+    return;
+  }
+  ventana.document.write(`<!DOCTYPE html>
     <html>
     <head>
       <meta charset="UTF-8">
-      <title>Factura - ${v.cliente || "Cliente"}</title>
-      <style>${TICKET_CSS}</style>
+      <title>${titulo}</title>
+      <style>${TICKET_CSS}${cssExtra}</style>
     </head>
-    <body onload="window.print()">
-      ${ticketHTML}
+    <body>
+      <div id="ticketPrint">
+        ${cuerpoHTML}
+      </div>
+      ${PRINT_SCRIPT}
     </body>
-    </html>
-  `);
+    </html>`);
   ventana.document.close();
 }
 
+// ===== IMPRIMIR FACTURA DE UNA VENTA =====
+// Abre una ventana con EL MISMO ticket que se imprime al facturar en Venta
+// (index.html) y lanza el diálogo de impresión automáticamente.
+function imprimirFactura(ventaId) {
+  const v = ventas.find(x => extraerId(x._id) === ventaId);
+  if (!v) { alert("No se encontró esta venta"); return; }
+  abrirVentanaImpresion(`Factura - ${v.cliente || "Cliente"}`, construirTicketDesdeVenta(v, true));
+}
+
 // ===== IMPRIMIR TODAS LAS VENTAS DE UN DÍA (EN UNA SOLA HOJA) =====
-// Genera un solo documento continuo con todas las facturas del día, una tras
-// otra, con el mismo diseño de ticket que en Venta, separadas por una línea
-// punteada. No se fuerza salto de página entre facturas: todo sale en una
-// sola hoja/rollo continuo, ideal para impresoras térmicas.
+// Un solo documento continuo con todas las facturas del día, una tras otra,
+// con el mismo diseño de ticket que en Venta, separadas por una línea punteada.
+// (En esta versión se omite el QR de cada ticket para ahorrar papel.)
 function imprimirDia(fecha) {
   const items = ventas.filter(v => fechaEC(v.fecha) === fecha);
   if (!items.length) { alert("No hay ventas para ese día"); return; }
@@ -782,45 +914,25 @@ function imprimirDia(fecha) {
     totalDia += totalFinal;
 
     facturasHTML += `
-      <div class="factura" style="${idx > 0 ? 'border-top: 3px dashed #000; margin-top: 14px; padding-top: 10px;' : ''}">
-        ${construirTicketDesdeVenta(v)}
+      <div style="${idx > 0 ? 'border-top: 3px dashed #000; margin-top: 10px; padding-top: 8px;' : ''}">
+        ${construirTicketDesdeVenta(v, false)}
       </div>`;
   });
 
-  const ventana = window.open("", "_blank", "width=420,height=700");
-  if (!ventana) { alert("El navegador bloqueó la ventana de impresión. Permite las ventanas emergentes para este sitio."); return; }
+  const resumen = `
+    <div style="text-align:center;border:2px solid #000;border-radius:8px;padding:6px;margin-bottom:10px;">
+      <div style="font-size:14px;font-weight:900;">Resumen del día ${fecha}</div>
+      <div style="font-size:13px;">Total de ventas: ${items.length}</div>
+      <div style="font-size:15px;font-weight:900;">Total del día: $${totalDia.toFixed(2)}</div>
+    </div>`;
 
-  ventana.document.write(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8">
-      <title>Ventas del día ${fecha}</title>
-      <style>
-        ${TICKET_CSS}
-        .resumen-dia { text-align: center; border: 2px solid #000; border-radius: 8px; padding: 10px; margin-bottom: 14px; }
-        .resumen-dia h3 { margin: 0 0 6px; }
-      </style>
-    </head>
-    <body onload="window.print()">
-      <div class="resumen-dia">
-        <h3>📅 Resumen del día ${fecha}</h3>
-        <p style="margin:2px 0;">Total de ventas: ${items.length}</p>
-        <p style="margin:2px 0;font-size:15px;font-weight:bold;">Total del día: $${totalDia.toFixed(2)}</p>
-      </div>
-      ${facturasHTML}
-    </body>
-    </html>
-  `);
-  ventana.document.close();
+  abrirVentanaImpresion(`Ventas del día ${fecha}`, resumen + facturasHTML, "", 420, 700);
 }
 
 /* ══════════════════════════════════════════════════════════════
-   FACTURA "BONITA" PARA ENVIAR POR WHATSAPP / GMAIL
-   A diferencia del ticket térmico (monocromo, ancho fijo 80mm,
-   pensado para papel), esta versión usa los colores de la marca
-   (rojo/negro), tarjetas con esquinas redondeadas y más aire —
-   pensada para verse bien como IMAGEN en un celular.
+   FACTURA "BONITA" PARA ENVIAR POR GMAIL / WHATSAPP
+   Diseño a color con el logo de Agro Naranjito, pensada para
+   verse bien como IMAGEN en el celular del cliente.
 ══════════════════════════════════════════════════════════════ */
 function construirFacturaBonitaHTML(v) {
   const dv = calcularDatosVenta(v);
@@ -828,63 +940,107 @@ function construirFacturaBonitaHTML(v) {
           tasaPct, montoInteres, meses, totalFinal, pago, vuelto, bancoNombre,
           bancoCuenta, comprobante, numComprobante, tipo, fecha } = dv;
 
-  const filasProductos = productosArr.map(p => {
+  const etiquetaPago = ({ efectivo: "💵 Efectivo", credito: "📝 Crédito", transferencia: "🏦 Transferencia" })[tipo] || tipo;
+
+  const filas = productosArr.map((p, i) => {
     const cantidad = p.cantidad || 0;
-    const sub = (p.subtotal !== undefined && p.subtotal !== null) ? Number(p.subtotal) : Number(p.precio || 0) * cantidad;
+    const pu  = Number(p.precio || 0);
+    const sub = (p.subtotal !== undefined && p.subtotal !== null) ? Number(p.subtotal) : pu * cantidad;
+    const fondo = i % 2 ? "#fafafa" : "#ffffff";
     return `
-      <tr>
-        <td style="padding:6px 0;font-size:13px;color:#1e272e;">${p.nombre || "-"} <span style="color:#999;">x${cantidad}</span></td>
-        <td style="padding:6px 0;font-size:13px;color:#1e272e;text-align:right;font-weight:700;white-space:nowrap;">$${sub.toFixed(2)}</td>
+      <tr style="background:${fondo};">
+        <td style="padding:9px 6px;font-size:13px;color:#1e272e;">${p.nombre || "-"}</td>
+        <td style="padding:9px 4px;font-size:13px;color:#555;text-align:center;">${cantidad}</td>
+        <td style="padding:9px 4px;font-size:13px;color:#555;text-align:right;white-space:nowrap;">$${pu.toFixed(2)}</td>
+        <td style="padding:9px 6px;font-size:13px;color:#1e272e;text-align:right;font-weight:700;white-space:nowrap;">$${sub.toFixed(2)}</td>
       </tr>`;
   }).join("");
 
+  const filaTot = (lbl, val, color = "#555") => `
+    <tr>
+      <td style="padding:3px 0;font-size:13px;color:${color};">${lbl}</td>
+      <td style="padding:3px 0;font-size:13px;color:${color};text-align:right;">${val}</td>
+    </tr>`;
+
+  let extrasTot = filaTot("Subtotal", `$${subtotal.toFixed(2)}`);
+  if (pct > 0) extrasTot += filaTot(`Descuento (${pct}%)`, `-$${descuentoMonto.toFixed(2)}`, "#27ae60");
+  if (tipo === "credito") extrasTot += filaTot(`Interés (${tasaPct}%)`, `$${montoInteres.toFixed(2)}`);
+
+  let detallePago = "";
+  if (tipo === "efectivo") {
+    detallePago = filaTot("Pago recibido", `$${pago.toFixed(2)}`) + filaTot("Vuelto", `$${vuelto.toFixed(2)}`);
+  } else if (tipo === "credito") {
+    detallePago = filaTot("Plazo", `${meses} ${meses === 1 ? "mes" : "meses"}`);
+  } else if (tipo === "transferencia") {
+    detallePago = filaTot("Banco", bancoNombre || "-") + filaTot("Cuenta", bancoCuenta || "-") + filaTot("Comprobante", comprobante || "-");
+  }
+
   return `
-  <div class="factura-bonita" style="width:380px;font-family:Arial, sans-serif;background:#ffffff;color:#1e272e;">
-    <div style="background:linear-gradient(135deg,#ff3f34,#e84118);padding:26px 20px;text-align:center;color:#fff;">
-      <div style="font-size:22px;font-weight:900;letter-spacing:1px;">🌿 AGRO NARANJITO</div>
-      <div style="font-size:11px;opacity:0.92;margin-top:6px;">RUC: ${NEGOCIO.ruc}</div>
-      <div style="font-size:11px;opacity:0.85;">${NEGOCIO.direccionEstablecimiento}</div>
+  <div class="factura-bonita" style="width:400px;font-family:Arial,Helvetica,sans-serif;background:#ffffff;color:#1e272e;">
+
+    <!-- ENCABEZADO CON LOGO -->
+    <div style="background:linear-gradient(135deg,#ff3f34,#e84118);padding:22px 20px 16px;text-align:center;color:#ffffff;">
+      ${logoSVG("#ffffff", "#f0402d", 'width="220" height="84"')}
+      <div style="font-size:11px;margin-top:6px;opacity:0.95;">RUC: ${NEGOCIO.ruc}</div>
+      <div style="font-size:11px;opacity:0.9;">${NEGOCIO.direccionEstablecimiento}</div>
     </div>
+
+    <!-- FRANJA NOTA DE VENTA -->
+    <table style="width:100%;border-collapse:collapse;background:#1e272e;color:#ffffff;">
+      <tr>
+        <td style="padding:10px 20px;font-size:13px;font-weight:700;letter-spacing:1px;">NOTA DE VENTA</td>
+        <td style="padding:10px 20px;font-size:13px;text-align:right;">N° ${numComprobante}</td>
+      </tr>
+    </table>
+
     <div style="padding:20px;">
-      <div style="display:flex;justify-content:space-between;font-size:12px;color:#999;margin-bottom:14px;">
-        <span>N°: ${numComprobante}</span>
-        <span>${fecha}</span>
-      </div>
-      <div style="background:#f9f9f9;border-radius:10px;padding:12px 14px;margin-bottom:14px;">
-        <div style="font-size:10px;color:#999;text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;">Cliente</div>
-        <div style="font-size:15px;font-weight:700;">${cliente}</div>
+
+      <div style="font-size:12px;color:#999;margin-bottom:12px;">📅 ${fecha}</div>
+
+      <!-- CLIENTE -->
+      <div style="background:#f7f7f8;border-left:4px solid #ff3f34;border-radius:6px;padding:12px 14px;margin-bottom:16px;">
+        <div style="font-size:11px;color:#999;margin-bottom:3px;">Cliente</div>
+        <div style="font-size:16px;font-weight:700;">${cliente}</div>
         <div style="font-size:12px;color:#666;margin-top:3px;">Cédula/RUC: ${cedulaMostrar}</div>
       </div>
-      <table style="width:100%;border-collapse:collapse;margin-bottom:6px;">
+
+      <!-- PRODUCTOS -->
+      <table style="width:100%;border-collapse:collapse;">
         <thead>
-          <tr style="border-bottom:2px solid #eee;">
-            <th style="text-align:left;font-size:10px;color:#999;padding:4px 0;text-transform:uppercase;letter-spacing:1px;">Producto</th>
-            <th style="text-align:right;font-size:10px;color:#999;padding:4px 0;text-transform:uppercase;letter-spacing:1px;">Total</th>
+          <tr style="border-bottom:2px solid #ff3f34;">
+            <th style="text-align:left;font-size:11px;color:#777;padding:6px;">Producto</th>
+            <th style="text-align:center;font-size:11px;color:#777;padding:6px 4px;width:40px;">Cant.</th>
+            <th style="text-align:right;font-size:11px;color:#777;padding:6px 4px;width:64px;">P. unit.</th>
+            <th style="text-align:right;font-size:11px;color:#777;padding:6px;width:70px;">Total</th>
           </tr>
         </thead>
-        <tbody>${filasProductos}</tbody>
+        <tbody>${filas}</tbody>
       </table>
-      <div style="border-top:1px dashed #ddd;padding-top:10px;margin-top:6px;font-size:13px;">
-        <div style="display:flex;justify-content:space-between;margin:3px 0;color:#555;"><span>Subtotal</span><span>$${subtotal.toFixed(2)}</span></div>
-        ${pct > 0 ? `<div style="display:flex;justify-content:space-between;margin:3px 0;color:#27ae60;"><span>Descuento (${pct}%)</span><span>-$${descuentoMonto.toFixed(2)}</span></div>` : ""}
-        ${tipo === "credito" ? `<div style="display:flex;justify-content:space-between;margin:3px 0;color:#555;"><span>Interés (${tasaPct}%)</span><span>$${montoInteres.toFixed(2)}</span></div>` : ""}
-      </div>
-      <div style="background:#1e272e;color:#fff;border-radius:10px;padding:14px 16px;margin:14px 0;display:flex;justify-content:space-between;align-items:center;">
-        <span style="font-size:13px;font-weight:700;letter-spacing:1px;">TOTAL</span>
-        <span style="font-size:23px;font-weight:900;">$${totalFinal.toFixed(2)}</span>
-      </div>
-      ${tipo === "efectivo" ? `
-        <div style="font-size:13px;display:flex;justify-content:space-between;margin:3px 0;color:#555;"><span>Pago</span><span>$${pago.toFixed(2)}</span></div>
-        <div style="font-size:13px;display:flex;justify-content:space-between;margin:3px 0;color:#555;"><span>Vuelto</span><span>$${vuelto.toFixed(2)}</span></div>` : ""}
-      ${tipo === "transferencia" ? `
-        <div style="font-size:12px;color:#555;margin-top:6px;line-height:1.6;">
-          Banco: ${bancoNombre}<br>Cuenta: ${bancoCuenta}<br>Comprobante: ${comprobante}
-        </div>` : ""}
-      <div style="text-align:center;margin-top:18px;padding-top:14px;border-top:1px dashed #ddd;font-size:11px;color:#999;">
-        Este documento es un comprobante interno de venta.<br>
-        <span style="color:#ff3f34;font-weight:700;">¡Gracias por su compra! Vuelva pronto 😊</span>
+
+      <!-- SUBTOTALES -->
+      <table style="width:100%;border-collapse:collapse;margin-top:12px;border-top:1px dashed #ddd;padding-top:6px;">
+        ${extrasTot}
+      </table>
+
+      <!-- TOTAL -->
+      <table style="width:100%;border-collapse:collapse;background:#1e272e;color:#ffffff;margin:14px 0;border-radius:10px;">
+        <tr>
+          <td style="padding:14px 16px;font-size:13px;font-weight:700;letter-spacing:1px;">TOTAL A PAGAR</td>
+          <td style="padding:14px 16px;font-size:24px;font-weight:900;text-align:right;">$${totalFinal.toFixed(2)}</td>
+        </tr>
+      </table>
+
+      <!-- FORMA DE PAGO -->
+      <div style="font-size:12px;color:#999;margin-bottom:4px;">Forma de pago: <b style="color:#1e272e;">${etiquetaPago}</b></div>
+      <table style="width:100%;border-collapse:collapse;">${detallePago}</table>
+
+      <!-- PIE -->
+      <div style="text-align:center;margin-top:20px;padding-top:14px;border-top:1px dashed #ddd;">
+        <div style="font-size:14px;font-weight:700;color:#ff3f34;">¡Gracias por su compra!</div>
+        <div style="font-size:11px;color:#999;margin-top:4px;">Este documento es un comprobante interno de venta.<br>${NEGOCIO.nombreComercial} · ${NEGOCIO.direccionEstablecimiento}</div>
       </div>
     </div>
+    <div style="height:8px;background:linear-gradient(135deg,#ff3f34,#e84118);"></div>
   </div>`;
 }
 
@@ -900,96 +1056,164 @@ async function generarBlobFactura(v) {
   const objetivo = cont.querySelector(".factura-bonita");
   let blob;
   try {
-    const canvas = await html2canvas(objetivo, { scale: 2, backgroundColor: "#ffffff", useCORS: true });
+    const canvas = await html2canvas(objetivo, { scale: 2, backgroundColor: "#ffffff", useCORS: true, logging: false });
     blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
   } finally {
     document.body.removeChild(cont);
   }
+  if (!blob) throw new Error("No se pudo crear la imagen");
   return blob;
 }
 
-// Fallback cuando el navegador no soporta compartir archivos directamente:
-// descarga la imagen y abre WhatsApp/Gmail con el mensaje ya listo para
-// que el usuario solo tenga que adjuntar la imagen que se acaba de descargar.
-function abrirCanalesManual(v) {
-  let algunCanal = false;
+/* ══════════════════════════════════════════════════════════════
+   ENVIAR FACTURA: el usuario elige Gmail o WhatsApp
+   - Al abrir el modal ya se va preparando la imagen de la factura.
+   - PC: la imagen se COPIA al portapapeles y se abre Gmail / WhatsApp;
+         solo hay que pegarla con Ctrl+V. (Ni Gmail ni WhatsApp permiten
+         adjuntar una imagen automáticamente desde un enlace.)
+   - Celular: se abre el menú nativo de "Compartir" con la imagen.
+══════════════════════════════════════════════════════════════ */
+let _envio = { venta: null, promesa: null };
 
-  if (v.celular) {
-    const numero = v.celular.replace(/^0/, "593");
-    const msg = encodeURIComponent(`Hola ${v.cliente || ""}, le saluda Agro Naranjito. Le compartimos la factura de su compra. ¡Gracias por su preferencia!`);
-    window.open(`https://wa.me/${numero}?text=${msg}`, "_blank");
-    algunCanal = true;
-  }
-
-  if (v.correo) {
-    const asunto = encodeURIComponent("Factura de su compra - Agro Naranjito");
-    const cuerpo = encodeURIComponent(
-`Hola ${v.cliente || ""},
-
-Le saluda Agro Naranjito. Adjunto encontrará la factura de su compra (recuerda adjuntar la imagen que se descargó).
-
-Gracias por su compra.
-Agro Naranjito`
-    );
-    setTimeout(() => {
-      window.open(`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(v.correo)}&su=${asunto}&body=${cuerpo}`, "_blank");
-    }, algunCanal ? 500 : 0);
-    algunCanal = true;
-  }
-
-  if (!algunCanal) {
-    alert("Este cliente no tiene celular ni correo registrado. Agrégalo editando la venta para poder enviarle la factura.");
-  }
+function esMovil() {
+  return /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 }
 
-// ===== ENVIAR FACTURA (WhatsApp / Gmail) CON LA IMAGEN REAL =====
-// Usa la Web Share API (navigator.share con archivos) para que el celular
-// abra el panel nativo de "Compartir" y el usuario elija WhatsApp o Gmail,
-// enviando la IMAGEN de la factura ya armada (no solo texto).
-// En computadoras de escritorio (o navegadores sin soporte), se descarga
-// la imagen y se abren WhatsApp Web / Gmail para adjuntarla manualmente.
-async function compartirFactura(ventaId) {
+function numeroWhatsApp(cel) {
+  const n = String(cel || "").replace(/\D/g, "");
+  if (!n) return "";
+  if (n.startsWith("593")) return n;
+  if (n.startsWith("0"))   return "593" + n.slice(1);
+  if (n.length === 9)      return "593" + n;
+  return n;
+}
+
+function abrirEnvio(ventaId) {
   const v = ventas.find(x => extraerId(x._id) === ventaId);
   if (!v) { alert("No se encontró esta venta"); return; }
 
-  const overlay = document.getElementById("overlay-generando");
-  overlay.classList.add("activo");
+  const total = (v.total !== undefined && v.total !== null) ? Number(v.total) : 0;
+  document.getElementById("envio-cliente").textContent = `${v.cliente || "Cliente"} — $${total.toFixed(2)}`;
+  document.getElementById("envio-correo").value  = v.correo  || "";
+  document.getElementById("envio-celular").value = v.celular || "";
+  document.getElementById("envio-preview").innerHTML = construirFacturaBonitaHTML(v);
+  document.getElementById("envio-estado").textContent = "⏳ Preparando imagen de la factura...";
+  document.getElementById("modal-envio").classList.add("activo");
 
-  try {
-    const blob = await generarBlobFactura(v);
-    const nombreArchivo = `factura_${(v.cliente || "cliente").replace(/\s+/g, "_")}.png`;
-    const file = new File([blob], nombreArchivo, { type: "image/png" });
-
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      overlay.classList.remove("activo");
-      await navigator.share({
-        files: [file],
-        title: "Factura Agro Naranjito",
-        text: `Factura de ${v.cliente || "Cliente"} - Agro Naranjito`
-      });
-    } else {
-      // Fallback: descargar imagen y abrir WhatsApp/Gmail para adjuntarla
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = nombreArchivo;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-
-      overlay.classList.remove("activo");
-      alert("Tu navegador no permite enviar la imagen directamente.\n\nSe descargó la factura como imagen. Ahora se abrirá WhatsApp/Gmail para que la adjuntes manualmente.");
-      abrirCanalesManual(v);
-    }
-  } catch (err) {
-    overlay.classList.remove("activo");
-    if (err.name !== "AbortError") { // el usuario cerró el panel de compartir, no es un error real
+  // La imagen se genera ahora, así al tocar Gmail/WhatsApp ya está lista.
+  const promesa = generarBlobFactura(v);
+  _envio = { venta: v, promesa };
+  promesa
+    .then(() => { if (_envio.promesa === promesa) document.getElementById("envio-estado").textContent = esMovil()
+        ? "✅ Factura lista. Toca Gmail o WhatsApp y elige la app en el menú de compartir."
+        : "✅ Factura lista. Toca Gmail o WhatsApp: la imagen se copia y solo la pegas con Ctrl+V."; })
+    .catch(err => {
       console.log(err);
-      alert("No se pudo generar/enviar la factura: " + err.message);
+      if (_envio.promesa === promesa) document.getElementById("envio-estado").textContent = "⚠️ No se pudo generar la imagen; se enviará solo el texto.";
+    });
+}
+
+function cerrarEnvio() {
+  document.getElementById("modal-envio").classList.remove("activo");
+}
+
+async function copiarImagen(blob) {
+  try {
+    if (!blob || !navigator.clipboard || typeof ClipboardItem === "undefined") return false;
+    await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+    return true;
+  } catch (e) { console.log("clipboard:", e); return false; }
+}
+
+function descargarImagen(blob, nombre) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = nombre;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+async function enviarFactura(canal) {
+  const v = _envio.venta;
+  if (!v) return;
+
+  const correo  = document.getElementById("envio-correo").value.trim();
+  const celular = document.getElementById("envio-celular").value.trim();
+  const nombreCanal = canal === "gmail" ? "Gmail" : "WhatsApp";
+
+  let blob = null;
+  try { blob = await _envio.promesa; } catch (_) { blob = null; }
+
+  const dv = calcularDatosVenta(v);
+  const nombreArchivo = `factura_${(v.cliente || "cliente").replace(/\s+/g, "_")}.png`;
+  const file = blob ? new File([blob], nombreArchivo, { type: "image/png" }) : null;
+
+  const textoCorto = `Hola ${v.cliente || ""}, le saluda Agro Naranjito 🌿. Le compartimos su factura N° ${dv.numComprobante} por $${dv.totalFinal.toFixed(2)}. ¡Gracias por su compra!`;
+
+  // ---- Celular / tablet: menú nativo de compartir con la imagen ----
+  if (esMovil() && file && navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: "Factura Agro Naranjito", text: textoCorto });
+      cerrarEnvio();
+    } catch (err) {
+      if (err.name !== "AbortError") mostrarToast("No se pudo abrir el menú de compartir: " + err.message, true);
     }
+    return;
+  }
+
+  // ---- PC: copiar imagen (o descargarla) y abrir Gmail / WhatsApp ----
+  let copiada = false;
+  if (blob) {
+    copiada = await copiarImagen(blob);
+    if (!copiada) descargarImagen(blob, nombreArchivo);
+  }
+
+  let url;
+  if (canal === "gmail") {
+    const asunto = encodeURIComponent(`Factura ${dv.numComprobante} - ${NEGOCIO.nombreComercial}`);
+    const productosTxt = dv.productosArr.map(p => {
+      const c = p.cantidad || 0;
+      const s = (p.subtotal !== undefined && p.subtotal !== null) ? Number(p.subtotal) : Number(p.precio || 0) * c;
+      return `• ${p.nombre || "-"} x${c} = $${s.toFixed(2)}`;
+    }).join("\n");
+    const cuerpo = encodeURIComponent(
+`Hola ${v.cliente || ""},
+
+Le saluda ${NEGOCIO.nombreComercial}. Le compartimos su factura:
+
+N°: ${dv.numComprobante}
+Fecha: ${dv.fecha}
+
+${productosTxt}
+
+TOTAL: $${dv.totalFinal.toFixed(2)}
+
+¡Gracias por su compra!
+${NEGOCIO.nombreComercial}
+`);
+    url = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(correo)}&su=${asunto}&body=${cuerpo}`;
+  } else {
+    const num = numeroWhatsApp(celular);
+    url = `https://wa.me/${num}?text=${encodeURIComponent(textoCorto)}`;
+  }
+
+  const ventana = window.open(url, "_blank");
+  if (!ventana) {
+    mostrarToast("El navegador bloqueó la ventana. Permite las ventanas emergentes para este sitio e inténtalo otra vez.", true);
+    return;
+  }
+
+  cerrarEnvio();
+  if (!blob) {
+    mostrarToast(`Se abrió ${nombreCanal}, pero no se pudo generar la imagen de la factura.`, true);
+  } else if (copiada) {
+    mostrarToast(`📋 Factura copiada. En ${nombreCanal} presiona Ctrl+V para pegarla${canal === "whatsapp" && !num_ok(celular) ? " (elige primero el contacto)" : ""}.`);
+  } else {
+    mostrarToast(`⬇️ Se descargó la imagen de la factura. Adjúntala en ${nombreCanal}.`);
   }
 }
+
+function num_ok(cel) { return !!numeroWhatsApp(cel); }
 
 // ===== HISTORIAL =====
 // Construye todo el HTML en un array y lo vuelca al DOM en UNA sola
@@ -1057,8 +1281,8 @@ function mostrar(lista) {
             ${prods}
             <button onclick="imprimirFactura('${vid}')"
               style="background:#27ae60;color:white;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;margin-top:8px;">🖨 Imprimir factura</button>
-            <button onclick="compartirFactura('${vid}')"
-              title="Enviar factura por WhatsApp o Gmail"
+            <button onclick="abrirEnvio('${vid}')"
+              title="Enviar factura por Gmail o WhatsApp"
               style="background:#8e44ad;color:white;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;margin-top:8px;margin-left:6px;">📤 Enviar factura</button>
           </div>`);
       });

@@ -116,6 +116,7 @@
   <a href="analisis.html">🔍 Historial</a>
   <a href="caja.html" class="active">💵 Caja</a>
   <a href="cliente.html">👤 Clientes</a>
+  <a href="pedidos.html" class="actual">🚚 Proveedores</a>
 </div>
 
 <div class="main">
@@ -485,7 +486,7 @@ function confirmarModalPass() {
   if (fn) fn();
 }
 
-/* ═══ IMPRIMIR CIERRE (OPTIMIZADO PARA ALTA VISIBILIDAD) ═══ */
+/* ═══ IMPRIMIR CIERRE (COMPACTO Y TODO EN NEGRO) ═══ */
 function imprimirCierre(data) {
   const lista = extraerTransferencias(data).length
     ? extraerTransferencias(data)
@@ -494,168 +495,120 @@ function imprimirCierre(data) {
   const transHTML = lista.length
     ? lista.map(t => `
         <tr>
-          <td><b>${t.banco       || 'S/B'}</b></td>
-          <td><b>${t.comprobante || 'S/N'}</b></td>
-          <td><b>$${t.monto      || 0}</b></td>
+          <td>${t.banco       || 'S/B'}</td>
+          <td>${t.comprobante || 'S/N'}</td>
+          <td>$${t.monto      || 0}</td>
           <td>${t.motivo      || ''}</td>
         </tr>`).join('')
-    : '<tr><td colspan="4" style="text-align:center; padding:10px 0;">Sin transferencias</td></tr>';
+    : '<tr><td colspan="4" style="text-align:center; padding:6px 0;">Sin transferencias</td></tr>';
 
   const gastosHTML = (data.gastosLista && data.gastosLista.length)
     ? data.gastosLista.map(g => `<div class="gasto-item">• $${g.monto} | ${g.motivo}</div>`).join('')
-    : 'Sin gastos registrados';
+    : '<div class="gasto-item">Sin gastos registrados</div>';
 
-  const v = window.open('', '_blank', 'width=450,height=800');
+  const v = window.open('', '_blank', 'width=400,height=700');
   v.document.write(`<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <title>Cierre de Caja</title>
   <style>
-    /* Forzar negro absoluto y eliminar suavizados grises */
-    * { 
-      color: #000000 !important; 
-      background: #ffffff !important; 
-      -webkit-print-color-adjust: exact !important; 
+    /* Negro absoluto en todo el ticket */
+    * {
+      color: #000000 !important;
+      background: #ffffff !important;
+      font-weight: 800;
+      -webkit-print-color-adjust: exact !important;
       print-color-adjust: exact !important;
     }
-    
-    body { 
-      font-family: 'Arial', 'Helvetica', sans-serif; 
-      width: 76mm; 
-      margin: 0 auto; 
-      padding: 5px; 
-      font-size: 15px; /* Letra base más grande */
-      line-height: 1.4;
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      width: 72mm;
+      margin: 0 auto;
+      padding: 3px;
+      font-size: 12px;
+      line-height: 1.25;
     }
 
-    h2 { 
-      text-align: center; 
-      margin: 10px 0; 
-      font-size: 20px; /* Título imponente */
-      font-weight: 900; 
-      letter-spacing: 0.5px;
-    }
-
-    .sep { 
-      border: none; 
-      border-top: 3px double #000000; /* Separador más grueso y visible */
-      margin: 12px 0; 
-    }
-
-    .info-principal div {
-      margin-bottom: 6px;
-      font-size: 16px; /* Datos clave más grandes */
-    }
-
-    .info-principal b {
+    h2 {
+      text-align: center;
+      margin: 4px 0;
+      font-size: 15px;
       font-weight: 900;
     }
 
-    table { 
-      width: 100%; 
-      border-collapse: collapse; 
-      font-size: 14px; 
-      margin-top: 8px; 
+    .sep {
+      border: none;
+      border-top: 2px dashed #000000;
+      margin: 6px 0;
     }
 
-    th { 
-      text-align: left; 
-      border-bottom: 2px solid #000000; 
-      padding: 4px 0; 
-      font-weight: bold; 
+    .fecha { font-size: 11px; text-align: center; font-weight: 900; }
+
+    .fila {
+      display: flex;
+      justify-content: space-between;
+      margin: 2px 0;
+      font-size: 12px;
+    }
+    .fila b { font-weight: 900; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 4px; }
+    th { text-align: left; border-bottom: 2px solid #000000; padding: 2px 0; font-weight: 900; font-size: 11px; }
+    td { padding: 2px 2px 2px 0; vertical-align: top; font-weight: 800; }
+
+    .gasto-item { font-size: 11px; font-weight: 800; margin-bottom: 2px; }
+
+    .seccion-titulo { font-size: 12px; font-weight: 900; text-transform: uppercase; display: block; margin-top: 4px; }
+
+    .tot {
+      font-weight: 900;
       font-size: 14px;
-    }
-
-    td { 
-      padding: 5px 2px; 
-      vertical-align: top;
-    }
-
-    .gasto-item {
-      font-size: 14px;
-      font-weight: bold;
-      margin-bottom: 4px;
-    }
-
-    /* Sección de totales con fuentes gigantes */
-    .tot { 
-      font-weight: 900; 
-      font-size: 18px; /* Saldo y Esperado gigantes */
-      margin-top: 8px; 
-      border: 1px solid #000000;
-      padding: 6px;
+      margin-top: 5px;
+      border: 2px solid #000000;
+      padding: 4px;
       text-align: center;
     }
-    
-    .tot-sm {
-      font-weight: bold;
-      font-size: 16px;
-      margin-top: 5px;
-    }
 
-    .seccion-titulo {
-      font-size: 16px;
-      font-weight: 900;
-      text-transform: uppercase;
-      margin-top: 10px;
-      display: block;
-    }
+    .tot-sm { font-weight: 900; font-size: 12px; margin-top: 4px; }
 
-    @page { 
-      size: 80mm auto; 
-      margin: 0mm; 
-    }
+    @page { size: 80mm auto; margin: 2mm; }
   </style>
 </head>
 <body>
 
 <h2>NEXUS</h2>
 <h2>CIERRE DE CAJA</h2>
+<div class="fecha">${new Date().toLocaleString('es-EC', { hour12: true })}</div>
 
 <hr class="sep">
-<div style="font-size: 13px; text-align: center; font-weight: bold;">
-  Fecha: ${new Date().toLocaleString('es-EC', { hour12: true })}
-</div>
-<hr class="sep">
-
-<div class="info-principal">
-  <div>Apertura: <b>$${data.apertura ?? 0}</b></div>
-  <div>Ventas (efectivo): <b>$${data.ingresos ?? 0}</b></div>
-  <div>Gastos: <b>- $${data.gastos ?? 0}</b></div>
-</div>
+<div class="fila"><span>Apertura</span><b>$${data.apertura ?? 0}</b></div>
+<div class="fila"><span>Ventas (efectivo)</span><b>$${data.ingresos ?? 0}</b></div>
+<div class="fila"><span>Gastos</span><b>- $${data.gastos ?? 0}</b></div>
 
 <hr class="sep">
-<span class="seccion-titulo">💳 Transferencias</span>
+<span class="seccion-titulo">Transferencias</span>
 <table>
   <tr><th>Banco</th><th>Compr.</th><th>Monto</th><th>Mot.</th></tr>
   ${transHTML}
 </table>
-<div class="tot-sm">Total Transferencias: $${data.transferencias ?? 0}</div>
+<div class="tot-sm">Total transferencias: $${data.transferencias ?? 0}</div>
 
 <hr class="sep">
-<span class="seccion-titulo">📉 Detalle Gastos</span>
-<div style="margin-top: 6px;">
-  ${gastosHTML}
-</div>
+<span class="seccion-titulo">Detalle gastos</span>
+${gastosHTML}
 
 <hr class="sep">
-<div class="info-principal">
-  <div>Esperado en caja: <b>$${data.esperado ?? 0}</b></div>
-  <div>Real contado: <b>$${data.real ?? 0}</b></div>
-  <div style="font-size: 18px;">Diferencia: <b style="text-decoration: underline;">$${data.diferencia ?? 0}</b></div>
-</div>
+<div class="fila"><span>Esperado en caja</span><b>$${data.esperado ?? 0}</b></div>
+<div class="fila"><span>Real contado</span><b>$${data.real ?? 0}</b></div>
+<div class="fila"><span>Diferencia</span><b>$${data.diferencia ?? 0}</b></div>
 
-<div class="tot">
-  SALDO TOTAL: $${data.saldo ?? 0}
-</div>
-
-<div class="tot" style="margin-top: 10px;">
-  DEJADO EN CAJA: $${data.dejar ?? 0}
-</div>
+<div class="tot">SALDO TOTAL: $${data.saldo ?? 0}</div>
+<div class="tot">DEJADO EN CAJA: $${data.dejar ?? 0}</div>
 
 <hr class="sep">
-<div style="text-align:center; font-size:13px; font-weight:bold; margin: 15px 0 30px 0;">
+<div style="text-align:center; font-size:11px; font-weight:900; margin: 6px 0 18px 0;">
   — COMPROBANTE DE CIERRE —
 </div>
 

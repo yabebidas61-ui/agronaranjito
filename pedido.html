@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Proveedores</title>
+<style>
+body{margin:0;font-family:'Segoe UI';display:flex;background:#f5f6fa}
+.sidebar{width:220px;background:#1e272e;color:#fff;height:100vh;padding:20px;box-sizing:border-box}
+.sidebar a{display:block;color:#fff;padding:10px;text-decoration:none;margin-top:10px;border-radius:8px}
+.sidebar a:hover{background:#485460}.sidebar a.actual{background:#ff3f34}
+.main{flex:1;overflow-y:auto}
+.contenido{padding:20px;display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start}
+.card{background:#fff;padding:18px;border-radius:12px;flex:1;min-width:420px}
+.card h3{margin:0 0 12px}
+input{padding:8px;margin:5px 0;width:100%;box-sizing:border-box;border:1px solid #ddd;border-radius:6px}
+button{padding:8px 12px;border:none;background:#ff3f34;color:#fff;border-radius:6px;cursor:pointer}
+button:hover{background:#e03329}button.sec{background:#888}button.sec:hover{background:#555}
+.cab-pedido{display:grid;grid-template-columns:110px 1fr;gap:6px 10px;align-items:center;margin-bottom:14px}
+.cab-pedido label{font-weight:700;font-size:13px}.cab-pedido input{margin:0}
+.cab-pedido input.proveedor-input{background:#fff9c4;font-weight:700}
+.fila-nuevo{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:4px}
+.fila-nuevo input{margin:0}
+.f-nombre{flex:2;min-width:140px}.f-medida{flex:1;min-width:90px}.f-cant{flex:1;min-width:70px}.f-precio{flex:1;min-width:80px}
+.hint{font-size:12px;min-height:16px;margin-bottom:8px}.hint.ok{color:#14804a}.hint.no{color:#c0392b}
+table.tabla-preforma{width:100%;border-collapse:collapse;margin:10px 0;font-size:13px}
+table.tabla-preforma th{background:#b7ceb0;text-transform:uppercase;font-size:12px;padding:8px 6px;text-align:center;border:1px solid #fff}
+table.tabla-preforma td{padding:7px 6px;border-bottom:1px solid #eee;text-align:center}
+td.nombre-prod{text-align:left!important;font-weight:600}td.precio,td.total-col{text-align:right!important}
+tr.fila-total td{font-weight:700;background:#ffe0b2}
+td.estado-completo{background:#a9dfbf;font-weight:700;color:#145a32}
+td.estado-falta{background:#f5b7b1;font-weight:700;color:#922b21}
+td.estado-pendiente{background:#f9e79f;font-weight:700;color:#7d6608}
+.btn-borrar{background:#e74c3c;padding:3px 8px;font-size:12px}
+.total-line{font-size:18px;font-weight:700;margin:6px 0 4px;text-align:right}
+.alerta-error{background:#fff0f0;border:1px solid #ff3f34;color:#c0392b;border-radius:6px;padding:8px 12px;margin:6px 0;font-size:13px;display:none}
+.alerta-error.ok{background:#eafaf1;border-color:#27ae60;color:#14804a}
+.filtro-proveedores{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.filtro-proveedores button{background:#dfe4ea;color:#1e272e;padding:6px 12px;font-size:13px}
+.filtro-proveedores button.activo{background:#ff3f34;color:#fff}
+.pedido-card{border:1px solid #eee;border-radius:10px;padding:12px;margin-bottom:14px}
+.pedido-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px}
+.badge{font-size:12px;padding:3px 10px;border-radius:20px;font-weight:700}
+.badge.pendiente{background:#fff3cd;color:#a17a00}.badge.completo{background:#d4f8e8;color:#14804a}.badge.incompleto{background:#ffe0e0;color:#c0392b}
+.pedido-fechas{font-size:12px;color:#888;margin:4px 0 8px}
+.pedido-actions{margin-top:8px;text-align:right;display:flex;gap:8px;justify-content:flex-end}
+.overlay{position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,.6);display:none;justify-content:center;align-items:center;z-index:1000}
+.modal-box{background:#fff;padding:24px;width:460px;max-height:85vh;overflow-y:auto;border-radius:10px}
+.recibir-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 0;border-bottom:1px solid #f0f0f0}
+.recibir-row span{flex:1;font-size:13px}.recibir-row input{width:70px!important;margin:0!important}.recibir-row input.pr{width:85px!important;background:#fff9c4}.recibir-head{display:flex;justify-content:flex-end;gap:10px;font-size:11px;color:#888;font-weight:700;text-transform:uppercase}.recibir-head span{width:70px;text-align:center}.recibir-head span+span{width:85px}
+</style>
+</head>
+<body>
+<div class="sidebar">
+  <h2>NEXUS</h2>
+  <a href="index.html">💰 Venta</a><a href="bodega.html">📦 Bodega</a><a href="deuda.html">💸 Deudas</a>
+  <a href="deuda.html">🔍 Historial</a><a href="caja.html">💵 Caja</a><a href="cliente.html">👤 Clientes</a>
+  <a href="pedidos.html" class="actual">🚚 Proveedores</a>
+</div>
+
+<div class="main"><div class="contenido">
+
+  <div class="card">
+    <h3>Nueva preforma</h3>
+    <div class="cab-pedido">
+      <label>PEDIDO</label>
+      <input id="quienPide" placeholder="Nombre de quien solicita">
+      <label>PROVEEDOR</label>
+      <input id="proveedor" class="proveedor-input" placeholder="Ej: ESLABON DEL AGRO" list="listaProveedores">
+      <datalist id="listaProveedores"></datalist>
+    </div>
+
+    <div class="fila-nuevo">
+      <input class="f-nombre" id="prodNombre" placeholder="Producto (elige de Bodega)" list="listaProductos" oninput="vincularProducto()">
+      <datalist id="listaProductos"></datalist>
+      <input class="f-medida" id="prodMedida" placeholder="Medida (50KG, LITRO...)">
+      <input class="f-cant" id="prodCant" type="number" placeholder="Cant." min="1">
+      <input class="f-precio" id="prodPrecio" type="number" placeholder="Precio" min="0" step="0.01">
+      <button onclick="agregarItem()" style="white-space:nowrap">+ Añadir</button>
+    </div>
+    <div class="hint" id="hintProducto"></div>
+
+    <table class="tabla-preforma">
+      <thead><tr><th>Producto</th><th>Presentación</th><th>Cantidad</th><th>Precio</th><th>Total</th><th></th></tr></thead>
+      <tbody id="cuerpoCarrito"></tbody>
+    </table>
+
+    <div class="total-line">TOTAL: $<span id="totalPedido">0.00</span></div>
+    <div class="alerta-error" id="alertaError"></div>
+    <button style="width:100%;padding:10px;margin-top:8px" onclick="guardarPreforma()">📋 Guardar preforma</button>
+  </div>
+
+  <div class="card">
+    <h3>Historial de pedidos</h3>
+    <div class="filtro-proveedores" id="filtroProveedores"></div>
+    <div id="listaPedidos">Cargando...</div>
+  </div>
+
+</div></div>
+
+<div class="overlay" id="overlayRecibir">
+  <div class="modal-box">
+    <h3>📦 Registrar llegada</h3>
+    <div id="recibirLista"></div>
+    <div class="alerta-error" id="alertaRecibir"></div>
+    <div style="display:flex;gap:10px;margin-top:12px">
+      <button onclick="confirmarRecepcion()" style="flex:1">Confirmar llegada</button>
+      <button class="sec" onclick="cerrarRecibir()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = "https://app-zobz.onrender.com";
+
+let itemsPedido = [], pedidos = [], productosBodega = [], nombresFiltro = [];
+let filtroActivo = "todos", pedidoActivoId = null, productoVinculado = null;
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const norm = s => String(s ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+const money = n => Number(n || 0).toFixed(2);
+
+document.addEventListener("DOMContentLoaded", () => { cargarProductos(); cargarPedidos(); });
+
+/* ══════ PRODUCTOS DE BODEGA ══════ */
+async function cargarProductos() {
+  try {
+    const res = await fetch(`${API}/productos`);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    productosBodega = await res.json();
+    if (!Array.isArray(productosBodega)) productosBodega = [];
+  } catch (e) { console.error("cargarProductos:", e); productosBodega = []; }
+  document.getElementById("listaProductos").innerHTML =
+    productosBodega.map(p => `<option value="${esc(p.nombre)}">`).join("");
+}
+
+function vincularProducto() {
+  const txt = norm(document.getElementById("prodNombre").value);
+  const hint = document.getElementById("hintProducto");
+  productoVinculado = productosBodega.find(p => norm(p.nombre) === txt) || null;
+  if (!txt) { hint.textContent = ""; hint.className = "hint"; return; }
+  if (productoVinculado) {
+    hint.textContent = "✔ Está en Bodega: al llegar se sumará al stock.";
+    hint.className = "hint ok";
+    const precio = document.getElementById("prodPrecio");
+    if (!precio.value && productoVinculado.precioCompra) precio.value = productoVinculado.precioCompra;
+  } else {
+    hint.textContent = "⚠ No está en Bodega: al llegar NO se sumará stock. Créalo primero en Bodega o elígelo de la lista.";
+    hint.className = "hint no";
+  }
+}
+
+/* ══════ ARMAR PREFORMA ══════ */
+function agregarItem() {
+  const nombre = document.getElementById("prodNombre").value.trim();
+  const medida = document.getElementById("prodMedida").value.trim();
+  const cant   = parseInt(document.getElementById("prodCant").value);
+  const precio = parseFloat(document.getElementById("prodPrecio").value);
+
+  if (!nombre) return mostrarAlerta("Escribe el nombre del producto.");
+  if (!cant || cant <= 0) return mostrarAlerta("Cantidad inválida.");
+  if (isNaN(precio) || precio < 0) return mostrarAlerta("Precio inválido.");
+
+  itemsPedido.push({
+    nombre: productoVinculado ? productoVinculado.nombre : nombre,
+    productoId: productoVinculado ? productoVinculado._id : null,
+    codigo: productoVinculado ? (productoVinculado.codigo || "") : "",
+    medida: medida || "-",
+    cantidadPedida: cant,
+    precioUnitario: precio,
+    cantidadRecibida: null
+  });
+
+  ["prodNombre","prodMedida","prodCant","prodPrecio"].forEach(id => document.getElementById(id).value = "");
+  productoVinculado = null;
+  vincularProducto();
+  document.getElementById("prodNombre").focus();
+  renderCarritoPedido();
+}
+
+function quitarItem(i) { itemsPedido.splice(i, 1); renderCarritoPedido(); }
+
+function renderCarritoPedido() {
+  const total = itemsPedido.reduce((s, p) => s + p.cantidadPedida * p.precioUnitario, 0);
+  document.getElementById("totalPedido").textContent = money(total);
+
+  let filas;
+  if (!itemsPedido.length) {
+    filas = `<tr><td colspan="6" style="color:#aaa;padding:10px">Sin productos aún</td></tr>`;
+  } else {
+    filas = itemsPedido.map((p, i) => `
+      <tr>
+        <td class="nombre-prod">${esc(p.nombre)}${p.productoId ? "" : ' <span title="No está en Bodega" style="color:#c0392b">⚠</span>'}</td>
+        <td>${esc(p.medida)}</td>
+        <td>${p.cantidadPedida}</td>
+        <td class="precio">$${money(p.precioUnitario)}</td>
+        <td class="total-col">$${money(p.cantidadPedida * p.precioUnitario)}</td>
+        <td><button class="btn-borrar" onclick="quitarItem(${i})">❌</button></td>
+      </tr>`).join("") +
+      `<tr class="fila-total"><td colspan="4" style="text-align:right">TOTAL</td><td class="total-col">$${money(total)}</td><td></td></tr>`;
+  }
+  document.getElementById("cuerpoCarrito").innerHTML = filas;
+}
+renderCarritoPedido();
+
+async function guardarPreforma() {
+  const quienPide = document.getElementById("quienPide").value.trim();
+  const proveedor = document.getElementById("proveedor").value.trim();
+  if (!proveedor) return mostrarAlerta("Escribe el nombre del proveedor.");
+  if (!itemsPedido.length) return mostrarAlerta("Añade al menos un producto.");
+
+  const total = itemsPedido.reduce((s, p) => s + p.cantidadPedida * p.precioUnitario, 0);
+  try {
+    const res = await fetch(`${API}/pedidos`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ quienPide, proveedor, productos: itemsPedido, totalPreforma: total })
+    });
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    itemsPedido = [];
+    renderCarritoPedido();
+    document.getElementById("proveedor").value = "";
+    document.getElementById("quienPide").value = "";
+    await cargarPedidos();
+  } catch (err) {
+    console.error("guardarPreforma:", err);
+    mostrarAlerta("Error guardando la preforma. Verifica la conexión con el servidor.");
+  }
+}
+
+/* ══════ HISTORIAL ══════ */
+async function cargarPedidos() {
+  try {
+    const res = await fetch(`${API}/pedidos`);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    pedidos = await res.json();
+    if (!Array.isArray(pedidos)) pedidos = [];
+  } catch (err) {
+    console.error("cargarPedidos:", err);
+    pedidos = [];
+    document.getElementById("listaPedidos").innerHTML = "<p style='color:#888'>No se pudo cargar el historial.</p>";
+  }
+  nombresFiltro = [...new Set(pedidos.map(p => p.proveedor))];
+  if (filtroActivo !== "todos" && !nombresFiltro.includes(filtroActivo)) filtroActivo = "todos";
+  document.getElementById("listaProveedores").innerHTML = nombresFiltro.map(n => `<option value="${esc(n)}">`).join("");
+  renderFiltroProveedores();
+  renderPedidos();
+}
+
+function renderFiltroProveedores() {
+  document.getElementById("filtroProveedores").innerHTML =
+    `<button class="${filtroActivo === "todos" ? "activo" : ""}" onclick="setFiltro(-1)">Todos</button>` +
+    nombresFiltro.map((n, i) => `<button class="${filtroActivo === n ? "activo" : ""}" onclick="setFiltro(${i})">${esc(n)}</button>`).join("");
+}
+
+function setFiltro(i) {
+  filtroActivo = i < 0 ? "todos" : nombresFiltro[i];
+  renderFiltroProveedores();
+  renderPedidos();
+}
+
+function renderPedidos() {
+  const lista = filtroActivo === "todos" ? pedidos : pedidos.filter(p => p.proveedor === filtroActivo);
+  const ordenados = [...lista].sort((a, b) => new Date(b.fechaPreforma) - new Date(a.fechaPreforma));
+  const cont = document.getElementById("listaPedidos");
+
+  if (!ordenados.length) { cont.innerHTML = "<p style='color:#888;font-size:13px'>Sin pedidos aún.</p>"; return; }
+
+  cont.innerHTML = ordenados.map(p => {
+    const badge = p.estado === "pendiente" ? '<span class="badge pendiente">⏳ Pendiente</span>'
+                : p.estado === "completo"  ? '<span class="badge completo">✅ Llegó todo</span>'
+                : '<span class="badge incompleto">⚠️ Faltante</span>';
+
+    const filasProd = (p.productos || []).map(it => {
+      let estado, clase;
+      if (it.cantidadRecibida == null) { estado = "PENDIENTE"; clase = "estado-pendiente"; }
+      else if (it.cantidadRecibida >= it.cantidadPedida) { estado = "COMPLETO"; clase = "estado-completo"; }
+      else { estado = `FALTA ${it.cantidadPedida - it.cantidadRecibida}`; clase = "estado-falta"; }
+      return `<tr>
+        <td class="nombre-prod">${esc(it.nombre)}</td>
+        <td>${esc(it.medida || "-")}</td>
+        <td>${it.cantidadPedida}${it.cantidadRecibida != null ? ` / ${it.cantidadRecibida} lleg.` : ""}</td>
+        <td class="precio">$${money(it.precioUnitario)}</td>
+        <td class="total-col">$${money(it.cantidadPedida * it.precioUnitario)}</td>
+        <td class="${clase}">${estado}</td></tr>`;
+    }).join("");
+
+    const sinRecibir = !(p.productos || []).some(it => it.cantidadRecibida > 0);
+    const acciones = [`<button class="sec" onclick="exportarPDF('${esc(p._id)}')">📄 PDF</button>`];
+    if (p.estado !== "completo") acciones.push(`<button onclick="abrirRecibir('${esc(p._id)}')">📦 Registrar llegada</button>`);
+    // Se puede eliminar en cualquier estado
+    acciones.push(`<button class="sec" onclick="borrarPedido('${esc(p._id)}')">🗑 Eliminar</button>`);
+
+    return `<div class="pedido-card">
+      <div class="pedido-head">
+        <div><b>${esc(p.proveedor)}</b>${p.quienPide ? ` <span style="font-size:12px;color:#888">· Pedido por: ${esc(p.quienPide)}</span>` : ""}</div>
+        ${badge}
+      </div>
+      <div class="pedido-fechas">📋 Preforma: ${formatFecha(p.fechaPreforma)}${p.fechaLlegada ? ` &nbsp;|&nbsp; 🚚 Última llegada: ${formatFecha(p.fechaLlegada)}` : ""}</div>
+      <table class="tabla-preforma">
+        <thead><tr><th>Producto</th><th>Presentación</th><th>Cantidad</th><th>Precio</th><th>Total</th><th>Estado</th></tr></thead>
+        <tbody>${filasProd}<tr class="fila-total"><td colspan="4" style="text-align:right">TOTAL</td><td class="total-col">$${money(p.totalPreforma)}</td><td></td></tr></tbody>
+      </table>
+      ${acciones.length ? `<div class="pedido-actions">${acciones.join("")}</div>` : ""}
+    </div>`;
+  }).join("");
+}
+
+function formatFecha(f) {
+  if (!f) return "-";
+  return new Date(f).toLocaleString("es-EC", { dateStyle: "short", timeStyle: "short" });
+}
+
+async function borrarPedido(id) {
+  const ped = pedidos.find(x => x._id === id);
+  const llego = ped && (ped.productos || []).some(it => it.cantidadRecibida > 0);
+  const aviso = llego ? "Este pedido ya tiene mercadería recibida. Se borra solo el registro; el stock ya sumado en Bodega NO se revierte.\n\n¿Eliminar?" : "¿Eliminar esta preforma?";
+  if (!confirm(aviso)) return;
+  try {
+    const res = await fetch(`${API}/pedidos/${id}`, { method: "DELETE" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "HTTP " + res.status);
+    await cargarPedidos();
+  } catch (e) { console.error(e); alert("No se pudo eliminar: " + e.message); }
+}
+
+/* ══════ REGISTRAR LLEGADA (permite completar un faltante después) ══════ */
+function abrirRecibir(id) {
+  const p = pedidos.find(x => x._id === id);
+  if (!p) return;
+  pedidoActivoId = id;
+  document.getElementById("recibirLista").innerHTML = p.productos.map((it, i) => {
+    const yaRecibido = it.cantidadRecibida || 0;
+    const falta = Math.max(0, it.cantidadPedida - yaRecibido);
+    return `<div class="recibir-row">
+      <span>${esc(it.nombre)} <small style="color:#888">(${esc(it.medida || "-")}) — pedido: ${it.cantidadPedida}, ya llegó: ${yaRecibido}</small></span>
+      <input type="number" min="0" max="${falta}" id="recibirInput_${i}" placeholder="${falta}" title="Cantidad que llegó ahora" ${falta === 0 ? "disabled" : ""}>
+      <input class="pr" type="number" min="0" step="0.01" id="recibirPrecio_${i}" value="${it.precioUnitario}" title="Precio real de factura">
+    </div>`;
+  }).join("") + `<p style="font-size:12px;color:#888">Cantidad: lo que llegó <b>ahora</b> (vacío = lo que faltaba).<br>Precio: cámbialo si el proveedor lo subió; se guarda como precio de compra en Bodega.</p>`;
+  document.getElementById("recibirLista").insertAdjacentHTML("afterbegin", `<div class="recibir-head"><span>Llegó</span><span>Precio</span></div>`);
+  document.getElementById("alertaRecibir").style.display = "none";
+  document.getElementById("overlayRecibir").style.display = "flex";
+}
+
+function cerrarRecibir() {
+  document.getElementById("overlayRecibir").style.display = "none";
+  pedidoActivoId = null;
+}
+
+async function confirmarRecepcion() {
+  const p = pedidos.find(x => x._id === pedidoActivoId);
+  if (!p) return;
+  const alerta = document.getElementById("alertaRecibir");
+
+  const productosActualizados = p.productos.map((it, i) => {
+    const yaRecibido = it.cantidadRecibida || 0;
+    const falta = Math.max(0, it.cantidadPedida - yaRecibido);
+    const val = document.getElementById(`recibirInput_${i}`).value;
+    const ahora = val === "" ? falta : Math.max(0, Math.min(falta, parseInt(val) || 0));
+    const pv = parseFloat(document.getElementById(`recibirPrecio_${i}`).value);
+    const precioUnitario = isNaN(pv) || pv < 0 ? it.precioUnitario : pv;
+    return { ...it, precioUnitario, cantidadRecibida: yaRecibido + ahora };
+  });
+
+  const estado = productosActualizados.every(it => it.cantidadRecibida >= it.cantidadPedida) ? "completo" : "incompleto";
+
+  try {
+    const res = await fetch(`${API}/pedidos/recibir/${pedidoActivoId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ productos: productosActualizados, estado })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "HTTP " + res.status);
+
+    if (data.noEncontrados && data.noEncontrados.length) {
+      alerta.className = "alerta-error";
+      alerta.textContent = "Llegada registrada, pero NO se sumó stock de: " + data.noEncontrados.join(", ") + ". Créalos en Bodega.";
+      alerta.style.display = "block";
+      await cargarPedidos();
+      return;
+    }
+    cerrarRecibir();
+    await cargarPedidos();
+  } catch (err) {
+    console.error("confirmarRecepcion:", err);
+    alerta.className = "alerta-error";
+    alerta.textContent = "Error registrando la llegada. Intenta de nuevo.";
+    alerta.style.display = "block";
+  }
+}
+
+/* ══════ PDF (imprimir → "Guardar como PDF") ══════ */
+function exportarPDF(id) {
+  const p = pedidos.find(x => x._id === id);
+  if (!p) return;
+  const estadoTxt = p.estado === "pendiente" ? "Pendiente" : p.estado === "completo" ? "Llegó todo" : "Faltante";
+  const filas = (p.productos || []).map(it => {
+    const rec = it.cantidadRecibida == null ? "-" : it.cantidadRecibida;
+    return `<tr><td>${esc(it.nombre)}</td><td>${esc(it.medida || "-")}</td><td class="c">${it.cantidadPedida}</td><td class="c">${rec}</td><td class="r">$${money(it.precioUnitario)}</td><td class="r">$${money(it.cantidadPedida * it.precioUnitario)}</td></tr>`;
+  }).join("");
+  const w = window.open("", "_blank");
+  if (!w) return alert("El navegador bloqueó la ventana. Permite ventanas emergentes e intenta de nuevo.");
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Pedido - ${esc(p.proveedor)}</title>
+<style>body{font-family:'Segoe UI',Arial,sans-serif;margin:30px;color:#1e272e}h1{margin:0;font-size:22px}
+.sub{color:#666;font-size:13px;margin:4px 0 18px}table{width:100%;border-collapse:collapse;font-size:13px}
+th{background:#b7ceb0;text-transform:uppercase;font-size:11px;padding:8px 6px;text-align:left;border:1px solid #fff}
+td{padding:7px 6px;border-bottom:1px solid #ddd}.c{text-align:center}.r{text-align:right}
+.tot td{font-weight:700;background:#ffe0b2;border:none}.meta{font-size:13px;line-height:1.7;margin-bottom:14px}</style></head>
+<body><h1>AGRO NARANJITO #1 — Pedido a proveedor</h1><div class="sub">Documento generado el ${formatFecha(new Date())}</div>
+<div class="meta"><b>Proveedor:</b> ${esc(p.proveedor)}<br><b>Pedido por:</b> ${esc(p.quienPide || "-")}<br>
+<b>Preforma:</b> ${formatFecha(p.fechaPreforma)}${p.fechaLlegada ? ` &nbsp;|&nbsp; <b>Última llegada:</b> ${formatFecha(p.fechaLlegada)}` : ""}<br><b>Estado:</b> ${estadoTxt}</div>
+<table><thead><tr><th>Producto</th><th>Presentación</th><th class="c">Pedido</th><th class="c">Llegó</th><th class="r">Precio</th><th class="r">Total</th></tr></thead>
+<tbody>${filas}<tr class="tot"><td colspan="5" class="r">TOTAL</td><td class="r">$${money(p.totalPreforma)}</td></tr></tbody></table>
+<script>window.onload=()=>setTimeout(()=>window.print(),300)<\/script></body></html>`);
+  w.document.close();
+}
+
+function mostrarAlerta(msg) {
+  const el = document.getElementById("alertaError");
+  el.textContent = msg;
+  el.style.display = "block";
+  setTimeout(() => { el.style.display = "none"; }, 4000);
+}
+</script>
+</body>
+</html>

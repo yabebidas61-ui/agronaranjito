@@ -81,7 +81,7 @@
       </div>
       <small style="color:#666; display:block; margin-top:10px;">
         Se considera <b>atrasado</b> un cliente con deuda pendiente que no registra pagos ni movimientos
-        en los últimos <b id="diasAtrasoTxt">30</b> días.
+        en los últimos <b id="diasAtrasoTxt">40</b> días.
       </small>
       <div id="infoAtrasados" style="margin-top:10px; font-weight:600;"></div>
     </div>
@@ -216,7 +216,7 @@
 
 <!-- MODAL REPORTAR A BURÓ -->
 <div class="modal-overlay" id="modalBuro">
-  <div class="modal" style="width:420px;">
+  <div class="modal" style="width:420px; max-height:90vh; overflow-y:auto;">
     <h3>⚠️ Reportar a buró de crédito</h3>
     <input type="hidden" id="buro-id">
     <div id="buro-cliente-info" style="margin-bottom:10px; font-weight:600; color:#1e272e;"></div>
@@ -224,7 +224,8 @@
     <label>Cédula</label>
     <input type="text" id="buro-cedula" placeholder="Cédula">
 
-    <label>Pagaré (subir archivo)</label>
+    <label>Pagaré (si ya está guardado en el deudor, se usa automáticamente)</label>
+    <div id="buro-pagare-guardado" style="font-size:13px; color:#27ae60; margin-bottom:6px;"></div>
     <input type="file" id="buro-pagare" accept=".pdf,.jpg,.jpeg,.png">
 
     <label>Motivo</label>
@@ -254,6 +255,24 @@
   </div>
 </div>
 
+<!-- MODAL PAGARÉ -->
+<div class="modal-overlay" id="modalPagare">
+  <div class="modal" style="width:420px;">
+    <h3>📎 Pagaré del deudor</h3>
+    <div id="pagare-cliente" style="margin-bottom:10px; font-weight:600;"></div>
+    <div id="pagare-actual" style="background:#f0f4ff; border-left:4px solid #3c6fe4; padding:10px 14px; border-radius:8px; font-size:13px; margin-bottom:10px;"></div>
+
+    <label>Subir / reemplazar pagaré (PDF, JPG, PNG · máx. 2 MB)</label>
+    <input type="file" id="pagare-file" accept=".pdf,.jpg,.jpeg,.png">
+
+    <div class="modal-btns">
+      <button class="btn-cancelar" onclick="cerrarModal('modalPagare')">Cerrar</button>
+      <button id="btn-eliminar-pagare" style="flex:1; background:#c0392b;" onclick="eliminarPagare()">🗑 Eliminar</button>
+      <button class="btn-confirmar" onclick="guardarPagareActual()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
 <script>
 const API = "https://app-zobz.onrender.com";
 
@@ -273,7 +292,7 @@ const BANCOS = {
 // ============================================================
 
 // Cuántos días sin movimiento (sin pagos) se consideran "atraso"
-const DIAS_ATRASO = 30;
+const DIAS_ATRASO = 40;
 
 // Clave usada en localStorage para guardar el historial de recordatorios
 // enviados (se guarda en el navegador, no en el servidor).
@@ -397,11 +416,37 @@ function reportarABuro(id, cliente) {
   document.getElementById("buro-cliente-info").innerHTML = `Cliente: <b>${cliente}</b>`;
   document.getElementById("buro-cedula").value = d ? (d.cedula && d.cedula !== "-" ? d.cedula : "") : "";
   document.getElementById("buro-pagare").value = "";
+  mostrarPagareEnBuro(id);
   document.getElementById("buro-motivo").value = "";
   document.getElementById("buro-monto").value = restante > 0 ? restante.toFixed(2) : "";
   document.getElementById("buro-meses").value = "";
 
   document.getElementById("modalBuro").classList.add("activo");
+}
+
+// Muestra el pagaré guardado del deudor directamente dentro del modal de
+// "Reportar a buró" (imagen o PDF), sin tener que abrirlo aparte.
+async function mostrarPagareEnBuro(id) {
+  const cont = document.getElementById("buro-pagare-guardado");
+  const p = obtenerPagares()[id];
+  if (!p) {
+    cont.style.color = "#c0392b";
+    cont.innerHTML = "⚠️ Este deudor no tiene pagaré guardado. Súbelo abajo.";
+    return;
+  }
+  cont.style.color = "#27ae60";
+  cont.innerHTML = `✅ Pagaré: <b>${p.nombre}</b><br><small style="color:#666;">Cargando vista previa...</small>`;
+  try {
+    const blob = await (await fetch(p.data)).blob();
+    const url  = URL.createObjectURL(blob);
+    const esImg = (blob.type || "").startsWith("image/");
+    const vista = esImg
+      ? `<a href="${url}" target="_blank"><img src="${url}" style="max-width:100%; max-height:110px; border:1px solid #ccc; border-radius:8px; margin-top:6px;"></a>`
+      : `<iframe src="${url}" style="width:100%; height:110px; border:1px solid #ccc; border-radius:8px; margin-top:6px;"></iframe>`;
+    cont.innerHTML = `✅ Pagaré: <a href="${url}" target="_blank"><b>${p.nombre}</b></a>${vista}`;
+  } catch (e) {
+    cont.innerHTML = `✅ Pagaré guardado: ${p.nombre}`;
+  }
 }
 
 function leerArchivoBase64(file) {
@@ -411,6 +456,75 @@ function leerArchivoBase64(file) {
     reader.onerror = () => reject(new Error("No se pudo leer el archivo"));
     reader.readAsDataURL(file);
   });
+}
+
+// ================= PAGARÉ POR DEUDOR =================
+const PAGARES_KEY = "agro_pagares";
+const MAX_PAGARE_MB = 2;
+let pagareIdActual = null;
+
+function obtenerPagares() {
+  try { return JSON.parse(localStorage.getItem(PAGARES_KEY) || "{}"); }
+  catch { return {}; }
+}
+
+function tienePagare(id) { return !!obtenerPagares()[id]; }
+
+function abrirModalPagare(id) {
+  pagareIdActual = id;
+  const d = deudas.find(x => x._id === id);
+  document.getElementById("pagare-cliente").innerHTML = `Cliente: <b>${d ? d.cliente : ""}</b>`;
+  document.getElementById("pagare-file").value = "";
+  renderPagareActual();
+  document.getElementById("modalPagare").classList.add("activo");
+}
+
+function renderPagareActual() {
+  const p = obtenerPagares()[pagareIdActual];
+  const div = document.getElementById("pagare-actual");
+  const btnEliminar = document.getElementById("btn-eliminar-pagare");
+  if (p) {
+    div.innerHTML = `
+      <a href="#" onclick="verPagare('${pagareIdActual}'); return false;">📎 ${p.nombre}</a><br>
+      <small>Subido: ${new Date(p.fecha).toLocaleString("es-EC")}</small>`;
+    btnEliminar.style.display = "block";
+  } else {
+    div.innerHTML = "Este deudor todavía no tiene pagaré.";
+    btnEliminar.style.display = "none";
+  }
+}
+
+function verPagare(id) {
+  const p = obtenerPagares()[id];
+  if (!p) return;
+  fetch(p.data).then(r => r.blob()).then(b => window.open(URL.createObjectURL(b), "_blank"));
+}
+
+async function guardarPagareActual() {
+  const file = document.getElementById("pagare-file").files[0];
+  if (!file) return alert("Selecciona el archivo del pagaré");
+  if (file.size > MAX_PAGARE_MB * 1024 * 1024)
+    return alert(`El archivo pesa más de ${MAX_PAGARE_MB} MB. Usa una imagen más liviana o un PDF más pequeño.`);
+  try {
+    const data = await leerArchivoBase64(file);
+    const todos = obtenerPagares();
+    todos[pagareIdActual] = { nombre: file.name, data, fecha: new Date().toISOString() };
+    localStorage.setItem(PAGARES_KEY, JSON.stringify(todos));
+    document.getElementById("pagare-file").value = "";
+    renderPagareActual();
+    cargar(); // refresca el indicador en la tabla
+  } catch (err) {
+    alert("No se pudo guardar el pagaré (puede que el almacenamiento del navegador esté lleno).");
+  }
+}
+
+function eliminarPagare() {
+  if (!confirm("¿Eliminar el pagaré de este deudor? Esta acción no se puede deshacer.")) return;
+  const todos = obtenerPagares();
+  delete todos[pagareIdActual];
+  localStorage.setItem(PAGARES_KEY, JSON.stringify(todos));
+  renderPagareActual();
+  cargar();
 }
 
 async function confirmarReporteBuro() {
@@ -423,9 +537,10 @@ async function confirmarReporteBuro() {
   const meses   = Number(document.getElementById("buro-meses").value);
   const fileInput = document.getElementById("buro-pagare");
   const file    = fileInput.files[0];
+  const guardado = obtenerPagares()[id];
 
   if (!cedula)              return alert("Ingresa la cédula");
-  if (!file)                return alert("Debes subir el archivo del pagaré");
+  if (!file && !guardado)   return alert("Debes subir el archivo del pagaré");
   if (!motivo)              return alert("Ingresa el motivo");
   if (!monto || isNaN(monto)) return alert("Ingresa el monto que debe");
   if (meses === "" || isNaN(meses)) return alert("Ingresa los meses de atraso");
@@ -436,12 +551,15 @@ async function confirmarReporteBuro() {
   if (btnConfirmar) btnConfirmar.disabled = true;
 
   try {
-    const pagareData = await leerArchivoBase64(file);
+    let pagareData, pagareNombre;
+    if (file) { pagareData = await leerArchivoBase64(file); pagareNombre = file.name; }
+    else      { pagareData = guardado.data;                 pagareNombre = guardado.nombre; }
+
     const log = obtenerLogBuro();
     log.push({
       id, cliente, cedula, motivo,
       monto, mesesAtraso: meses,
-      pagareNombre: file.name,
+      pagareNombre,
       pagareData,
       fecha: new Date().toISOString()
     });
@@ -819,6 +937,7 @@ function mostrar(lista, mostrarBotonRecordatorio) {
           <button onclick="abrirModal('${d._id}')">💰 Abonar</button>
           <button onclick="editar('${d._id}')">✏️</button>
           <button onclick="toggleDetalle('${d._id}')">📄</button>
+          <button onclick="abrirModalPagare('${d._id}')" title="Pagaré">${tienePagare(d._id) ? '📎✅' : '📎'}</button>
           <button onclick="imprimirRecibo('${d._id}')" title="Imprimir recibo">🖨</button>
           ${botonRecordar}
           <button onclick="eliminar('${d._id}')">🗑</button>
@@ -855,7 +974,7 @@ function abrirModal(id) {
   document.getElementById("btn-efectivo").classList.add("activo");
   document.getElementById("btn-transferencia").classList.remove("activo");
 
-  const btnConfirmar = document.querySelector(".btn-confirmar");
+  const btnConfirmar = document.querySelector("#modalOverlay .btn-confirmar");
   if (btnConfirmar) btnConfirmar.disabled = false;
 
   document.getElementById("modalOverlay").classList.add("activo");
@@ -898,7 +1017,7 @@ async function confirmarAbono() {
     if (!comprobante) return alert("Ingresa el número de comprobante");
   }
 
-  const btnConfirmar = document.querySelector(".btn-confirmar");
+  const btnConfirmar = document.querySelector("#modalOverlay .btn-confirmar");
   if (btnConfirmar) btnConfirmar.disabled = true;
 
   let clienteLocal  = deudas.find(x => x._id === deudaIdActual);
@@ -1278,6 +1397,9 @@ async function confirmarClave() {
   cerrarModal("modalClave");
   try {
     await fetch(API + '/deudas/' + deudaIdAEliminar, { method: "DELETE" });
+    // Borrar también el pagaré guardado de ese deudor
+    const pg = obtenerPagares(); delete pg[deudaIdAEliminar];
+    localStorage.setItem(PAGARES_KEY, JSON.stringify(pg));
     cargar();
   } catch (err) { console.log(err); alert("Error al eliminar deuda"); }
   deudaIdAEliminar = null;
